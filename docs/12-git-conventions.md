@@ -14,6 +14,7 @@
 
 ## 2) 커밋 메시지(Conventional Commits)
 - **커밋 메시지는 한글로 작성**한다.
+- **실제 커밋 전에 커밋 메시지 검토를 받는다.** 터미널에서 `git commit` 시 `.githooks/commit-msg` 훅이 메시지를 출력한 뒤 Enter로 진행할 때까지 대기한다. IDE/GUI에서 커밋할 때는 팀 내에서 메시지를 검토한 뒤 커밋하는 워크플로를 따른다. **Cursor 사용 시**: AI는 `git commit`을 실행하지 않고, 제안 메시지를 보여준 뒤 사용자가 터미널에서 직접 `git commit`을 실행해야 검토 단계가 동작한다(규칙: `.cursor/rules/commit-workflow.mdc`).
 
 형식:
 ```

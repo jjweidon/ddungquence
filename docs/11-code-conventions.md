@@ -1,5 +1,7 @@
 # 11. 코드 컨벤션
 
+> 프론트엔드(UI/React) 세부 규칙은 **19번 문서**(Toss rules 참고)를 우선 적용한다: `19-frontend-code-conventions.md`.
+
 ## 1) 기본 원칙
 - TypeScript `strict` 유지
 - 도메인 로직(UI 비의존)과 Firebase I/O를 분리

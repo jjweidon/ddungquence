@@ -37,4 +37,14 @@ if [ "$length" -gt 72 ]; then
   exit 1
 fi
 
+# 터미널에서만: 커밋 메시지 검토 확인 (IDE/GUI에서는 스킵)
+if [ -t 0 ]; then
+  echo ""
+  echo "--- 커밋 메시지 검토 ---"
+  cat "$commit_msg_file"
+  echo "------------------------"
+  printf "검토 후 Enter로 진행, Ctrl+C로 취소: "
+  read -r _
+fi
+
 exit 0
