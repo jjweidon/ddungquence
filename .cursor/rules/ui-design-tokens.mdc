@@ -1,0 +1,100 @@
+---
+description: USE WHEN implementing UI components/styles or configuring Tailwind. Keep DdungQuence brand palette and page-level consistency (dark UI, ring-based highlights).
+globs: tailwind.config.ts,tailwind.config.js,src/components/**/*.tsx,src/shared/**/*.tsx,src/features/**/*.tsx,src/app/**/*.tsx
+alwaysApply: false
+---
+# UI/UX & 디자인 토큰 (브랜드 고정)
+
+## 디자인 무드(고정)
+- “트럼프 카드(블랙/화이트/레드) + 포커칩(차콜)”
+- 키워드: 카드 테이블 / 미니멀 / 선명한 대비 / 속도감 있는 턴 플레이
+- 기본 모드: **다크 우선** (라이트 배경 금지)
+
+## 베이스 팔레트(고정 HEX)
+- DQ Black: `#0B0B0F`
+- DQ Charcoal: `#1A1D24`
+- DQ Charcoal Deep: `#111318`
+- DQ White: `#F8FAFC`
+- DQ Red(Primary): `#D61F2C`
+- DQ Red Dark: `#A0121C`
+- DQ Red Light: `#FF4D5A`
+- DQ Blue(팀2): `#2563EB`
+- DQ Green(팀3): `#16A34A`
+
+## UI 토큰 매핑(권장)
+- Background: `DQ Charcoal Deep`
+- Surface: `DQ Charcoal`
+- Surface Alt: `DQ Black`
+- Text Primary: `DQ White`
+- Text Muted: `DQ White` 70%
+- Border/Subtle: `DQ White` 10~14%
+- Primary Action: `DQ Red`
+- Focus/Selection: `DQ Red Light` (ring/glow)
+- Danger/Remove: `DQ Red Dark`
+
+## 컬러 사용 규칙(중요)
+- 팀 색상(blue/green)은 **칩/배지/미니 인디케이터**에만 사용.
+- 버튼/패널/큰 면적 배경에 팀 색상 사용 금지.
+- “현재 턴/선택/가능 칸” 강조는 **배경 채우기**가 아니라 **ring/outline** 중심.
+
+## 팀 칩 컬러(배정 순서 고정)
+- 1번 팀 → 레드
+- 2번 팀 → 블루
+- 3번 팀 → 그린(확장 시)
+> 색만으로 구분 금지: 아이콘/패턴 병행(색각 배려)
+
+## Tailwind 설정 예시
+```ts
+// tailwind.config.ts (발췌)
+export default {
+  theme: {
+    extend: {
+      colors: {
+        dq: {
+          black: "#0B0B0F",
+          charcoal: "#1A1D24",
+          charcoalDeep: "#111318",
+          white: "#F8FAFC",
+          red: "#D61F2C",
+          redDark: "#A0121C",
+          redLight: "#FF4D5A",
+          blue: "#2563EB",
+          green: "#16A34A",
+        },
+      },
+    },
+  },
+}
+```
+
+## 컴포넌트 프리셋(권장 Tailwind 클래스)
+- PageRoot: `min-h-dvh bg-dq-charcoalDeep text-dq-white`
+- Panel: `bg-dq-charcoal border border-white/10 rounded-2xl`
+- SubPanel: `bg-dq-black border border-white/10 rounded-2xl`
+- Divider: `border-t border-white/10`
+- Badge(중립): `bg-white/10 text-white/80 rounded-full px-2 py-0.5 text-xs`
+- Badge(강조): `bg-dq-red/15 text-dq-white ring-1 ring-dq-redLight/60`
+- PrimaryButton:
+  - base: `h-14 px-5 rounded-2xl bg-dq-red text-dq-white font-bold`
+  - disabled: `disabled:opacity-50 disabled:cursor-not-allowed`
+  - focus: `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dq-redLight focus-visible:ring-offset-2 focus-visible:ring-offset-dq-charcoalDeep`
+- SecondaryButton:
+  - `h-14 px-5 rounded-2xl bg-white/10 text-dq-white border border-white/10`
+- Chip(팀 표시):
+  - base: `size-10 rounded-full grid place-items-center border-2`
+  - team red/blue/green은 `border-dq-*/ bg-dq-*/` 조합 (패턴/아이콘 병행)
+
+## 타이포(권장)
+- 한글/UI: Noto Sans KR
+- 라틴/숫자: Inter
+- 룸 코드/로그(고정폭): JetBrains Mono(또는 `font-mono`)
+- 타입 스케일(권장)
+  - Display: 32~40px
+  - Heading: 18~24px
+  - Body: 14~16px
+  - Caption: 12~13px
+
+## 접근성/터치
+- 버튼/터치 타겟: 44px 이상
+- 키보드 포커스: `focus-visible` 링 필수
+- iOS Safari / Android Chrome 최신 2개 메이저 지원

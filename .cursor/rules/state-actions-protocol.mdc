@@ -1,0 +1,106 @@
+---
+description: USE WHEN defining actions, stores, reducers, transactions, or sequence detection logic.
+globs: src/domain/**/*.ts,src/domain/**/*.tsx,src/features/**/*.ts,src/features/**/*.tsx
+alwaysApply: false
+---
+# 상태/액션 계약(프로토콜) — 코드에서 1:1로 맞춘다
+
+## 상태 머신
+- `lobby` → `playing` → `ended` (rematch 시 `lobby`)
+
+## 액션 타입(도메인)
+### 로비 액션
+```ts
+export type LobbyAction =
+  | { type: "ROOM_CREATE"; nickname: string }
+  | { type: "ROOM_JOIN"; roomCode: string; nickname: string }
+  | { type: "ROOM_JOIN_AS_SPECTATOR"; roomCode: string; nickname: string }
+  | { type: "ROOM_LEAVE" } // 관전자는 항상 가능, 참여자는 버튼 없음(끊김 시 자동 처리)
+  | { type: "PLAYER_READY_SET"; ready: boolean }
+  | { type: "PLAYER_TEAM_SET"; teamId: "A" | "B" }
+  | { type: "PLAYER_SWITCH_TO_SPECTATOR" } // 로비에서만
+  | { type: "SPECTATOR_SWITCH_TO_PARTICIPANT" } // 로비에서만(자리 있을 때)
+  | { type: "HOST_START_GAME" };
+```
+
+### 게임 액션(턴)
+```ts
+export type GameAction =
+  | {
+      type: "TURN_PLAY_NORMAL";
+      expectedVersion: number;
+      cardId: string;        // e.g. "heart_10_1"
+      targetCellId: number;  // 카드 칸(2개 중 1개)
+    }
+  | {
+      type: "TURN_PLAY_JACK_WILD";
+      expectedVersion: number;
+      cardId: "JC" | "JD";   // Two-eyed
+      targetCellId: number;  // 어떤 빈칸
+    }
+  | {
+      type: "TURN_PLAY_JACK_REMOVE";
+      expectedVersion: number;
+      cardId: "JH" | "JS";   // One-eyed
+      removeCellId: number;  // 상대 칩 제거
+    };
+
+// 주의: 변형 규칙 고정 → 데드 카드는 교체/버리기 없음. TURN_EXCHANGE_DEAD_CARD 미지원.
+```
+
+## 트랜잭션 단위(권장)
+### public 업데이트(rooms/{roomId})
+공통 필드:
+- `game.version += 1`
+- (턴이 실제 진행된 경우) `game.turnNumber += 1`
+- `game.currentUid/currentSeat` → 다음 플레이어
+- `game.discardTopBySeat[seat] = cardId`
+- `game.lastAction = { uid, type, at }`
+
+액션별:
+- 일반 카드: `chipsByCell[targetCellId] = teamId`
+- 2-eye 잭: `chipsByCell[targetCellId] = teamId`
+- 1-eye 잭: `delete chipsByCell[removeCellId]`
+  - 단, `removeCellId`가 `completedSequences`에 포함되면 금지(MVP)
+
+### private 업데이트(privateHands/{uid})
+- hand에서 사용 카드 제거
+- 드로우 1장 추가(자동 드로우)
+- `handVersion += 1`
+
+> 구현 난이도 절감을 위해 private 업데이트를 public tx 이후 별도 write로 분리 가능.  
+> 단, 실패 시 복구/재시도 UX를 반드시 포함한다.
+
+## 클라이언트 1차 검증(필수)
+공통:
+- 내 uid == `room.game.currentUid`
+- `expectedVersion == room.game.version`
+- `phase == playing`
+
+일반 카드:
+- targetCellId의 보드 카드가 cardId와 매칭
+- 해당 칸이 비어 있음
+- cardId가 내 hand에 존재
+
+잭:
+- 2-eye: targetCellId가 비어 있음
+- 1-eye: removeCellId에 **상대** 칩 존재 + completedSequences에 포함되지 않음
+- 추가 변형: 1-eye로 제거된 칸은 **바로 다음 플레이어만** 2-eye로 배치 불가
+
+데드 카드:
+- cardId에 대응하는 두 칸이 모두 점유 → 데드
+- 변형 규칙 고정: 데드 카드는 손에 유지, 사용 불가(교체 없음)
+
+## 시퀀스 판정 알고리즘(권장)
+입력:
+- `chipsByCell`
+- `completedSequences`
+
+절차:
+1) 팀 기준 10x10 그리드 구성
+2) 4방향만 검사: →, ↓, ↘, ↙
+3) 각 시작점에서 길이 5 라인 검사
+4) 동일 라인이 이미 completedSequences에 있으면 무시
+5) 2시퀀스 모드 중복 규칙 고정:
+   - 새 시퀀스 cells와 기존 시퀀스가 **1칸 이하로만 겹치면 허용**
+   - 2칸 이상 겹치면 거부

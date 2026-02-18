@@ -1,0 +1,120 @@
+---
+description: USE WHEN implementing Firestore schema, repositories, room/lobby/game sync, transactions, or versioning.
+globs: src/repositories/**/*.ts,src/repositories/**/*.tsx,src/lib/firebase/**/*.ts,src/lib/firebase/**/*.tsx,firebase.json,firestore.rules,firestore.indexes.json
+alwaysApply: false
+---
+# Firestore 스키마/데이터 모델 (구현 기준)
+
+## 컬렉션 구조(권장)
+- `roomCodes/{code}`: **public lookup** (roomCode → roomId)
+- `rooms/{roomId}`: **public 핵심 문서** (status + game)
+- `rooms/{roomId}/players/{uid}`: public 참가자/관전자( role 로 구분 )
+- `rooms/{roomId}/privateHands/{uid}`: **private 손패** (uid만 read, host write 허용 가능)
+- `rooms/{roomId}/privateDealer/deck`: **private 덱** (host만 read/write)
+- `rooms/{roomId}/events/{eventId}`: 선택(디버그/리플레이, 기본 OFF)
+
+## 핵심 설계 원칙
+- **구독 문서 최소화**: 기본은 `rooms/{roomId}` 1개 + `privateHands/{uid}` 1개만 구독.
+- 보드 상태는 **전체 배열 저장 금지**.
+  - `chipsByCell: Record<cellId, teamId>` (맵)으로 저장하고 필요한 필드만 부분 업데이트.
+- **보드 카드 배치(어떤 cellId에 어떤 카드)** 는 DB에 저장하지 않는다.
+  - 정적 JSON(`public/board-layout.json` 등)만 사용. (board-layout 규칙 파일 참조)
+
+## 타입 스케치(참고)
+```ts
+export type RoomCodeDoc = {
+  roomId: string;
+  createdAt: unknown; // Timestamp
+};
+
+export type RoomDoc = {
+  roomCode: string;
+  status: "lobby" | "playing" | "ended";
+  hostUid: string;
+  createdAt: unknown; // Timestamp
+  updatedAt: unknown; // Timestamp
+  config: {
+    mode: "teams2";
+    maxPlayers: 4;
+    maxSpectators: 2;
+    sequenceToWin: 2;
+    oneEyedJackCanBreakSequence: boolean; // MVP: false
+    turnTimeSec?: number;
+  };
+  game?: {
+    version: number;
+    phase: "setup" | "playing" | "ended";
+    turnNumber: number;
+    currentUid: string;
+    currentSeat: number;
+    chipsByCell: Record<string, "A" | "B">;
+    completedSequences: Array<{ teamId: "A" | "B"; cells: number[]; createdTurn: number }>;
+    discardTopBySeat: Record<string, string | null>;
+    scoreByTeam: Record<"A" | "B", number>;
+    deckMeta: { drawLeft: number; reshuffles: number };
+    winner?: { teamId: "A" | "B"; atTurn: number };
+    lastAction?: { uid: string; type: string; at: unknown /*Timestamp*/ };
+  };
+};
+
+export type RoomPlayerDoc = {
+  uid: string;
+  nickname: string;
+  role: "participant" | "spectator";
+  teamId?: "A" | "B";
+  seat?: number;  // 0..3
+  ready?: boolean;
+  joinedAt: unknown; // Timestamp
+  lastSeenAt: unknown; // Timestamp
+};
+
+export type PrivateHandDoc = {
+  uid: string;
+  cardIds: string[];
+  handVersion: number;
+  updatedAt: unknown; // Timestamp
+};
+
+export type PrivateDealerDoc = {
+  dealerUid: string;
+  drawPile: string[];    // top = last element 권장
+  discardPile: string[];
+  deckVersion: number;
+};
+```
+
+## 주요 유스케이스 구현 포인트
+### 방 생성(createRoom)
+1) `rooms/{roomId}` create (status=lobby, hostUid=creator)
+2) `roomCodes/{code}` create (roomId 매핑)
+3) host를 `players/{uid}`로 participant 등록(seat/team/ready 초기화)
+
+### 방 참가(joinRoomByCode)
+1) `roomCodes/{code}` read → roomId 획득
+2) `players/{uid}` create
+   - 참가 자리가 없으면 `role=spectator`로 자동 입장(단, 관전 최대 2명)
+3) 로비 화면에서 `players` 목록 실시간 구독
+
+### 게임 시작(startGame, host only)
+- host가 덱 생성/셔플 후 `privateDealer/deck` 저장
+- 각 플레이어 `privateHands/{uid}`에 초기 손패 분배(host write)
+- `rooms/{roomId}.status=playing` 및 `game` 초기화
+
+### 턴 액션(submitTurnAction)
+- Firestore Transaction 기반
+- 공통 검증:
+  - `requesterUid === room.game.currentUid`
+  - `expectedVersion === room.game.version`
+- public 업데이트 최소 세트:
+  - `game.version += 1`
+  - (턴 진행 시) `turnNumber += 1`
+  - `chipsByCell`(배치/제거)
+  - `discardTopBySeat[seat]=cardId`
+  - `lastAction`
+  - nextTurn 계산 및 currentUid/currentSeat 이동
+
+> private hand 업데이트는 “public tx 성공 후 별도 write”로 분리 가능.  
+> 단, 실패/재시도/복구 UX를 반드시 넣는다(중간 상태 노출 가능).
+
+## 런타임 검증(권장)
+- Firestore snapshot은 `unknown`으로 받고 zod 등으로 파싱 후 사용(P1).

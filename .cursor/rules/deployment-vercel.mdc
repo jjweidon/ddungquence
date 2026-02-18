@@ -1,0 +1,27 @@
+---
+description: USE WHEN configuring deployment (Vercel) or Firebase Auth domains/env vars.
+globs: vercel.json,next.config.ts,next.config.js,.env,.env.local,README.md
+alwaysApply: false
+---
+# Vercel 배포 규칙
+
+## Environment Variables (필수)
+Vercel Project Settings → Environment Variables
+- `NEXT_PUBLIC_FIREBASE_API_KEY`
+- `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`
+- `NEXT_PUBLIC_FIREBASE_PROJECT_ID`
+- `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`
+- `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`
+- `NEXT_PUBLIC_FIREBASE_APP_ID`
+
+> `NEXT_PUBLIC_`는 클라이언트 번들에 포함된다. 비밀 키 저장 금지.
+
+## Firebase Auth Authorized Domains
+Firebase Console → Authentication → Settings → Authorized domains
+- 로컬: `localhost`
+- Vercel 프리뷰/프로덕션 도메인 추가(예: `your-app.vercel.app`)
+- 커스텀 도메인 사용 시 해당 도메인도 추가
+
+## 빌드/런타임 원칙
+- 기본: `next build` / `next start` (Vercel 자동)
+- 서버리스 함수는 사용하지 않는 방향(비용/복잡도 최소화)

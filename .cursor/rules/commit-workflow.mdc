@@ -1,14 +1,73 @@
 ---
-description: 커밋 전 메시지 검토 - AI는 git commit을 실행하지 않고, 사용자가 터미널에서 실행하도록 안내
+description: Always apply when discussing git commits/PRs. 커밋 메시지는 한글, AI는 git commit 실행 금지(메시지 제안만).
+globs: **/.gitignore,**/.githooks/*,**/.github/*,README.md
 alwaysApply: true
 ---
+# Git 워크플로/커밋 규칙
 
-# Git 커밋 규칙
+## 브랜치
+- `main`: 항상 배포 가능한 상태
+- `dev`: 통합 브랜치(선택)
+- 기능: `feat/<topic>`
+- 버그: `fix/<topic>`
+- 문서: `docs/<topic>`
+- 리팩터: `refactor/<topic>`
 
-- **AI는 `git commit` 또는 `git commit -m "..."` 명령을 실행하지 않는다.**
-- 커밋이 필요할 때 AI는 다음만 수행한다:
-  1. `git add`로 스테이징
-  2. **제안할 커밋 메시지**를 사용자에게 보여 주기
-  3. 사용자에게 **"아래 메시지로 터미널에서 `git commit`(또는 `git commit -m '...'`)을 실행해 주세요. commit-msg 훅이 메시지를 보여주고 Enter로 검토 확인합니다."** 라고 안내
-- 이렇게 하면 사용자가 터미널에서 커밋할 때 `.githooks/commit-msg` 훅이 동작해 커밋 메시지 검토 단계를 거칠 수 있다.
-- Cursor/도구에서 `git commit`을 실행하면 표준 입력이 터미널이 아니라서 훅의 "검토 후 Enter" 단계가 건너뛰어지므로, 검토를 받으려면 반드시 사용자가 터미널에서 커밋해야 한다.
+예)
+- `feat/lobby-room-create`
+- `fix/sequence-detect-diagonal`
+
+## 커밋 메시지(Conventional Commits, 한글)
+형식:
+```txt
+<type>(scope): <제목>
+
+[본문(선택)]
+```
+
+- **수정 내용이 적으면** 제목만 작성하면 된다.
+- **수정 내용이 많으면** 본문까지 작성한다(변경 요약·목록 권장). 이때 훅에서 본문 없으면 거부한다(기준: 스테이징 파일 5개 이상 또는 변경 라인 50줄 이상).
+
+type:
+- `feat` 기능
+- `fix` 버그
+- `docs` 문서
+- `refactor` 리팩터(기능 변경 없음)
+- `test` 테스트
+- `chore` 설정/도구
+- `perf` 성능
+
+예)
+- `feat(lobby): 방 생성 시 roomCodes 매핑 추가`
+- `fix(game): one-eyed jack으로 완성 시퀀스 칩 제거 불가 처리`
+- `refactor(board): 보드 레이아웃을 상수 JSON으로 분리`
+
+본문 예(변경이 많을 때):
+```txt
+refactor(ui): 09-ui-ux-design 문서 기준 랜딩·로비 UI 개선
+
+- globals: dq-form-card를 문서 토큰으로 통일
+- 랜딩: 다크 배경·버튼·타이포 적용
+- 로비: RoomHeader/PlayerSection/SpectatorSection/ActionBar 구조 적용
+```
+
+## 커밋 전 검토 훅(중요)
+- 터미널에서 `git commit` 시 `.githooks/commit-msg` 훅이:
+  1. 메시지를 **복사하기 쉬운 형태**로 출력한다(`--- 아래 메시지를 그대로 복사해 사용할 수 있습니다 ---` … `---` 사이에 메시지만 출력).
+  2. Enter 입력까지 대기한 뒤 커밋을 진행한다.
+- **따라서 AI는 `git commit`을 실행하면 안 된다.**
+  - 해야 할 일: 변경 내용 요약 + 커밋 메시지 후보(1~3개) 제안. 변경이 많으면 **본문 포함** 메시지 후보 제안.
+  - 사용자가 터미널에서 직접 `git commit` 실행(검토 단계 보장).
+
+## PR 규칙
+- PR은 작게(리뷰/리버트 쉬움)
+- Firestore 규칙/스키마 변경 시 docs/16(결정/마이그레이션 로그) 업데이트
+PR 템플릿(권장):
+```md
+## 변경 요약
+-
+
+## 체크리스트
+- [ ] UI 스크린샷(변경 시)
+- [ ] Firestore 규칙/스키마 변경 시 문서(16번) 업데이트
+```

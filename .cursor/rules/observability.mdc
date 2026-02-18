@@ -1,0 +1,30 @@
+---
+description: USE WHEN adding logging/debug panels/events or integrating Sentry/analytics. Avoid PII; keep cost guardrails.
+globs: src/**/*.ts,src/**/*.tsx
+alwaysApply: false
+---
+# 관측/로그/분석(선택)
+
+## 목표
+- 동기화/트랜잭션 실패 원인 파악 가능
+- Firestore 비용(Reads/Writes) 이상징후 조기 탐지
+
+## 앱 레벨 로깅
+- 개발 모드
+  - 마지막 public state(version/turn/currentUid) 표시
+  - 마지막 제출 액션 payload 표시
+- 프로덕션
+  - 사용자 노출 최소(토스트 수준)
+  - PII 저장 금지
+
+## 오류 추적(P1)
+- Sentry 도입 시:
+  - transaction 실패/권한 오류/네트워크 오류 수집
+  - context: `roomId`, `version`, `actionType` 정도만(개인정보 제외)
+
+## 이벤트 로그(선택)
+- `rooms/{roomId}/events`에 최근 N턴만 저장(roll-up)
+- 기본 구독 OFF, 디버그 토글로 ON
+
+## 비용 점검 루틴
+- Firebase Console에서 Firestore Reads/Writes/Storage를 주기적으로 확인

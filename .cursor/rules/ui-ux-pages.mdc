@@ -1,0 +1,74 @@
+---
+description: USE WHEN implementing page layouts for Lobby(/lobby/[code]) and Game. Follow the wireframe-based responsive layout; do not invent random placement/colors.
+globs: src/app/**/lobby/**,src/app/**/game/**,src/app/**/room/**,src/app/**/play/**,src/components/**/*.tsx,src/features/**/*.tsx,src/shared/**/*.tsx
+alwaysApply: false
+---
+# UI/UX 페이지 레이아웃 규칙 (Lobby & Game)
+
+## 공통(필수)
+- 기본 배경은 **다크**(`dq.charcoalDeep`) 고정. 라이트 배경/파스텔 배경 금지.
+- 간격은 **8pt 그리드**(8/16/24/32px). 랜덤 마진/패딩 금지.
+- 패널 프리셋(권장 Tailwind)
+  - Panel: `bg-dq-charcoal border border-white/10 rounded-2xl`
+  - SubPanel: `bg-dq-black border border-white/10 rounded-2xl`
+- CTA(주요 버튼)는 항상 **Primary Red**:
+  - PrimaryButton: `bg-dq-red text-dq-white`
+  - Focus: `focus-visible:ring-2 focus-visible:ring-dq-redLight`
+- 팀 색상(dq.blue/dq.green)은 **칩/배지/미니 인디케이터**에만 사용. 버튼/패널 배경에 사용 금지.
+- 모바일은 safe-area 반영: `pb-[env(safe-area-inset-bottom)]` 기반으로 하단 고정 영역 처리.
+
+## Lobby 페이지 (route: /lobby/[code])
+
+### 모바일 레이아웃(기본)
+**구조는 반드시 아래 순서**
+1) RoomHeader 카드(상단)
+   - 룸 코드(모노/트래킹) + 복사 버튼 + 연결 상태 배지
+2) PlayerSection 카드
+   - 참여자 리스트(칩 + 닉네임 + ME/HOST + READY)
+3) SpectatorSection 카드
+   - 관전자 리스트를 별도 카드로 분리
+4) ActionBar(하단 고정)
+   - 참여자: 팀 선택 + 준비(Primary)
+   - 관전자: 참여하기(Secondary)
+   - 호스트: 게임 시작(Primary, 전원 READY일 때만 enable)
+
+**금지**
+- CTA를 스크롤 하단에 숨기는 배치
+- 참여자/관전자 영역을 같은 리스트로 섞기
+
+### 데스크톱 레이아웃(lg+)
+- 2열 고정: 좌측(리스트) + 우측(팀/액션)
+- 권장 그리드: `grid grid-cols-[420px_1fr] gap-6`
+- 우측에 Primary CTA를 배치하되 **above the fold** 유지
+
+## Game 페이지
+
+### 모바일 레이아웃(기본, 세로)
+**구조는 반드시 아래 순서**
+1) TopStatus(상단 56px 내)
+   - Deck + TurnBadge + syncing/offline
+2) PlayerStrip(가로 4명)
+   - 현재 턴: `ring-2 ring-dq-redLight` + TURN 배지
+   - 내 플레이어: ME 배지
+3) Board(중앙, 가장 큰 면적)
+   - `aspect-square` 유지
+4) HandBar(My Card)
+   - 기본 6장(그리드 6칸 또는 가로 스크롤)
+   - 선택 카드: `ring-2 ring-dq-redLight`
+5) PrimaryActionBar(하단 고정)
+   - 기본 “카드 놓기”(Primary)
+   - notYourTurn/txPending/offline/선택 미완료 시 disabled
+
+### 데스크톱 레이아웃(lg+)
+- 3열 고정: 좌측 PlayerListPanel + 중앙 Board + 우측 SidePanel
+- 권장 그리드: `grid grid-cols-[300px_minmax(520px,1fr)_360px] gap-6`
+- 좌측: 플레이어 리스트(현재 턴 행 강조는 링/배지로만)
+- 우측: Deck(상단) → My Card(2x3) → CTA(하단)
+
+### 참여자/관전자 차이(필수)
+- 참여자: Hand/CTA 표시, 퇴장 버튼 없음
+- 관전자: Hand/CTA 숨김, “퇴장” 버튼 제공, 보드 조작 금지
+
+## 하이라이트 규칙(필수)
+- 가능 칸/선택 칸/현재 턴 강조는 **색 채우기**가 아니라 **ring/outline 중심**
+- 잭(제거): 제거 가능한 상대 칩만 ring, 완성 시퀀스 칩은 lock 표시(제거 불가)

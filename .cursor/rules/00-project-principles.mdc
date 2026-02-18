@@ -1,0 +1,54 @@
+---
+description: Always apply. 뚱퀀스 프로젝트의 핵심 원칙/제약/룰/아키텍처 요약(서버리스+무료구간+public/private+tx+version).
+globs:
+alwaysApply: true
+---
+# 프로젝트 컨텍스트 (항상 적용)
+
+## 제품/기술 스택
+- 제품: **뚱퀀스(DdungQuence)** — 5-in-a-row(시퀀스 계열) 턴제 보드게임
+- 스택: **Next.js(App Router) + TypeScript(strict) + TailwindCSS + Firebase(Auth + Firestore) + Vercel**
+- 운영 원칙: **서버리스 우선**(Cloud Functions 등 서버 컴포넌트 최소화/미사용 방향)
+
+## 핵심 제약(절대 위반 금지)
+- **무료 구간 최적화**
+  - Firestore 구독은 기본적으로 **public 1문서 + private 1문서**로 고정한다.
+  - “커서/마우스 이동” 같은 **고빈도 이벤트는 절대 동기화하지 않는다.**
+  - 상태 변경은 **턴 단위**로만 한다.
+- **일관성/동시성**
+  - 턴 액션은 가능한 **단일 Firestore Transaction**으로 처리한다.
+  - public game state는 `game.version`을 **항상 +1** 증가시키며, 액션 요청에는 `expectedVersion`을 포함한다.
+  - `expectedVersion != current version`이면 실패 처리하고 최신 상태를 재로딩한다.
+- **Public/Private 분리(필수)**
+  - Public: `rooms/{roomId}` (`game` 포함) — 보드 점유, 턴, discard, 점수/시퀀스 등
+  - Private: `rooms/{roomId}/privateHands/{uid}` — 손패(본인만 read), host가 딜링 시 host write 허용
+  - Dealer(선택/host 모델): `rooms/{roomId}/privateDealer/deck` — host만 read/write
+  - Firestore는 필드 단위 권한을 제공하지 않으므로, 손패/덱은 **절대 public 문서에 넣지 않는다.**
+- **개인정보 최소화**
+  - email/전화번호 등 PII 저장 금지. uid + 닉네임만 사용.
+
+## 게임 룰(구현 고정 해석)
+- 시퀀스: 같은 팀 칩 **5개 연속(가로/세로/대각)**.
+- 2팀 모드(MVP): **2개의 시퀀스**를 먼저 만들면 승리.
+- **변형 규칙 고정**
+  - 코너(0,9,90,99)는 **와일드가 아님**. 코너 카드로 칩을 놓아야 하며, 코너 칸은 **팀 전용(공유 불가)**.
+  - 데드 카드: 보드의 두 칸이 모두 점유된 카드 → **교체/버리기 없음**, 손에 유지하며 **사용 불가**로만 처리한다.
+- 잭 규칙
+  - Two-eyed Jack(와일드 배치): **J♣, J♦**
+  - One-eyed Jack(상대 제거): **J♥, J♠**
+  - 완성된 시퀀스에 포함된 칩은 **제거 불가(MVP)**.
+  - One-eyed로 제거된 칸은 **바로 다음 플레이어만** two-eyed로 배치 불가(그 다음 순서부터는 가능).
+
+## 아키텍처/코드 구조 원칙
+- **얇은 UI + 두꺼운 도메인**
+  - 룰/판정/상태 전이는 `src/domain`의 **pure function**으로 구현한다.
+  - Firestore I/O는 `src/repositories`로만 접근한다.
+  - Next page(`page.tsx`)는 조립(Composition)만 하고 비즈니스 로직을 넣지 않는다.
+- 네이밍/스타일
+  - 파일/폴더: `kebab-case`, 컴포넌트: `PascalCase`, 훅: `useXxx`
+  - 기본 export 금지(일관성)
+  - Tailwind는 `cn()`(clsx+tailwind-merge)로 조합, 임의 값 남발 금지(토큰 우선)
+
+## 문서 소스(프로젝트 내)
+- `/docs` 폴더가 요구사항/스키마/규칙의 단일 기준이다.
+- 변경으로 룰 해석이 바뀌면 **Decision 로그(docs/16)**를 업데이트한다.

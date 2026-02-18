@@ -13,8 +13,238 @@ import {
   leaveRoom,
 } from "@/features/room/roomApi";
 import type { RoomPlayerDoc, TeamId } from "@/features/room/types";
-import { getDoc, doc } from "firebase/firestore";
+import { getDoc, getDocs, collection, doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { getFirestoreDb } from "@/lib/firebase/client";
+
+const MAX_PARTICIPANTS = 4;
+
+// ─── 팀 칩 (09 문서: 팀 색상은 칩/배지에만) ─────────────────────
+function TeamChip({ teamId }: { teamId?: TeamId | null }) {
+  const style =
+    teamId === "A"
+      ? "bg-dq-red border-dq-red"
+      : teamId === "B"
+        ? "bg-dq-blue border-dq-blue"
+        : "bg-white/10 border-white/20";
+  return (
+    <span
+      className={`inline-flex size-8 shrink-0 rounded-full border-2 ${style}`}
+      aria-hidden
+    />
+  );
+}
+
+// ─── RoomHeader: 방 코드 + 복사 + 연결 상태 ─────────────────────
+function RoomHeader({
+  code,
+  onCopy,
+}: {
+  code: string;
+  onCopy: () => void;
+}) {
+  return (
+    <section className="bg-dq-charcoal border border-white/10 rounded-2xl p-4">
+      <div className="flex items-center justify-between gap-3">
+        <span
+          className="font-mono text-xl tracking-[0.2em] text-dq-white"
+          aria-label="방 코드"
+        >
+          {code.toUpperCase()}
+        </span>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onCopy}
+            className="px-3 py-1.5 rounded-xl text-sm font-medium bg-dq-black border border-white/10 text-dq-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dq-redLight"
+          >
+            복사
+          </button>
+          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-dq-green/20 text-dq-green border border-dq-green/30">
+            연결됨
+          </span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── PlayerSection: 참여자 리스트 (칩 + 닉네임 + HOST/ME + READY) ─
+function PlayerSection({
+  players,
+  hostUid,
+  myUid,
+}: {
+  players: RoomPlayerDoc[];
+  hostUid: string | null;
+  myUid: string | null;
+}) {
+  const participants = players.filter((p) => p.role === "participant");
+  return (
+    <section className="bg-dq-charcoal border border-white/10 rounded-2xl p-4">
+      <h2 className="text-xs font-bold tracking-widest text-dq-white/70 uppercase mb-3">
+        참여자
+      </h2>
+      <ul className="space-y-2">
+        {participants.map((p) => (
+          <li
+            key={p.uid}
+            className="flex items-center gap-3 py-2 px-3 rounded-xl bg-dq-black/50 border border-white/5"
+          >
+            <TeamChip teamId={p.teamId} />
+            <span className="flex-1 font-medium text-dq-white truncate">
+              {p.nickname}
+            </span>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {p.uid === hostUid && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-dq-red/20 text-dq-redLight border border-dq-red/30">
+                  HOST
+                </span>
+              )}
+              {p.uid === myUid && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/15 text-dq-white border border-white/20">
+                  ME
+                </span>
+              )}
+              {p.ready ? (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-dq-green/20 text-dq-green border border-dq-green/30 flex items-center gap-0.5">
+                  <span aria-hidden>✓</span> READY
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 rounded-full text-[10px] text-dq-white/50">
+                  대기
+                </span>
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+// ─── SpectatorSection: 관전자 리스트 (별도 카드, 09 문서) ─────────
+function SpectatorSection({
+  players,
+  myUid,
+}: {
+  players: RoomPlayerDoc[];
+  myUid: string | null;
+}) {
+  const spectators = players.filter((p) => p.role === "spectator");
+  if (spectators.length === 0) return null;
+
+  return (
+    <section className="bg-dq-charcoal border border-white/10 rounded-2xl p-4">
+      <h2 className="text-xs font-bold tracking-widest text-dq-white/70 uppercase mb-3">
+        관전자
+      </h2>
+      <ul className="space-y-2">
+        {spectators.map((p) => (
+          <li
+            key={p.uid}
+            className="flex items-center gap-3 py-2 px-3 rounded-xl bg-dq-black/50 border border-white/5"
+          >
+            <span className="inline-flex size-8 shrink-0 rounded-full bg-white/10 border border-white/20" />
+            <span className="flex-1 font-medium text-dq-white/80 truncate">
+              {p.nickname}
+              {p.uid === myUid && " (나)"}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+// ─── ActionBar: 하단 고정 (팀 선택 + 준비 / 게임 시작 / 참여하기) ──
+function ActionBar({
+  me,
+  isHost,
+  participants,
+  canJoinAsSpectator,
+  onReadyToggle,
+  onTeamSelect,
+  onStartGame,
+  onSpectatorJoin,
+  readyPending,
+  joinPending,
+}: {
+  me: RoomPlayerDoc | undefined;
+  isHost: boolean;
+  participants: RoomPlayerDoc[];
+  canJoinAsSpectator: boolean;
+  onReadyToggle: () => void;
+  onTeamSelect: (t: TeamId) => void;
+  onStartGame: () => void;
+  onSpectatorJoin: () => void;
+  readyPending: boolean;
+  joinPending: boolean;
+}) {
+  const allReady =
+    participants.length >= 2 && participants.every((p) => p.ready);
+  const isParticipant = me?.role === "participant";
+
+  return (
+    <div
+      className="fixed bottom-0 left-0 right-0 z-20 p-4 bg-dq-charcoalDeep border-t border-white/10"
+      style={{ paddingBottom: "calc(16px + env(safe-area-inset-bottom))" }}
+    >
+      <div className="max-w-lg mx-auto flex flex-col gap-4">
+        {isParticipant && (
+          <>
+            <div className="flex gap-2 justify-center">
+              {(["A", "B"] as const).map((teamId) => (
+                <button
+                  key={teamId}
+                  type="button"
+                  onClick={() => onTeamSelect(teamId)}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border min-h-[44px] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dq-redLight ${
+                    me?.teamId === teamId
+                      ? "bg-dq-black border-white/10 ring-2 ring-dq-redLight"
+                      : "bg-dq-black border-white/10 hover:bg-white/5"
+                  }`}
+                >
+                  <TeamChip teamId={teamId} />
+                  <span className="text-sm font-medium text-dq-white">
+                    {teamId === "A" ? "레드" : "블루"}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={onReadyToggle}
+              disabled={readyPending}
+              className="w-full min-h-[48px] py-2.5 rounded-xl text-sm font-bold bg-dq-red text-dq-white hover:bg-dq-redLight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dq-redLight disabled:opacity-50"
+            >
+              {me?.ready ? "준비 취소" : "준비"}
+            </button>
+            {isHost && (
+              <button
+                type="button"
+                onClick={onStartGame}
+                disabled={!allReady}
+                className="w-full min-h-[48px] py-2.5 rounded-xl text-sm font-bold bg-dq-red text-dq-white hover:bg-dq-redLight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dq-redLight disabled:opacity-50"
+              >
+                게임 시작
+              </button>
+            )}
+          </>
+        )}
+        {me?.role === "spectator" && canJoinAsSpectator && (
+          <button
+            type="button"
+            onClick={onSpectatorJoin}
+            disabled={joinPending}
+            className="w-full min-h-[48px] py-2.5 rounded-xl text-sm font-bold bg-dq-black border border-white/10 text-dq-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dq-redLight disabled:opacity-50"
+          >
+            {joinPending ? "참여 중…" : "참여하기"}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function LobbyPage() {
   const params = useParams();
@@ -32,26 +262,28 @@ export default function LobbyPage() {
 
   const [joinNickname, setJoinNickname] = useState("");
   const [joinPending, setJoinPending] = useState(false);
+  const [readyPending, setReadyPending] = useState(false);
   const unsubRef = useRef<(() => void) | null>(null);
 
   const isHost = uid !== null && hostUid !== null && uid === hostUid;
+  const me = players.find((p) => p.uid === uid);
+  const participants = players.filter((p) => p.role === "participant");
+  const canJoinAsParticipant =
+    me?.role === "spectator" && participants.length < MAX_PARTICIPANTS;
 
-  const setupRoom = useCallback(
-    async (rid: string) => {
-      unsubRef.current?.();
-      const room = await getRoom(rid);
-      if (!room) {
-        setError("방을 찾을 수 없습니다.");
-        return;
-      }
-      setHostUid(room.hostUid);
-      setStatus("ready");
-      unsubRef.current = subscribeToPlayers(rid, (newPlayers) => {
-        setPlayers(newPlayers);
-      });
-    },
-    []
-  );
+  const setupRoom = useCallback(async (rid: string) => {
+    unsubRef.current?.();
+    const room = await getRoom(rid);
+    if (!room) {
+      setError("방을 찾을 수 없습니다.");
+      return;
+    }
+    setHostUid(room.hostUid);
+    setStatus("ready");
+    unsubRef.current = subscribeToPlayers(rid, (newPlayers) => {
+      setPlayers(newPlayers);
+    });
+  }, []);
 
   useEffect(() => {
     if (!code || code.length < 4) {
@@ -93,6 +325,11 @@ export default function LobbyPage() {
     };
   }, [code, setupRoom]);
 
+  const handleCopyCode = useCallback(() => {
+    const normalized = code.trim().toUpperCase();
+    navigator.clipboard.writeText(normalized).catch(() => {});
+  }, [code]);
+
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!roomId || !joinNickname.trim() || joinPending) return;
@@ -108,14 +345,55 @@ export default function LobbyPage() {
     }
   };
 
+  const handleSpectatorJoin = async () => {
+    if (!roomId || !uid || !canJoinAsParticipant || joinPending) return;
+    setError(null);
+    setJoinPending(true);
+    try {
+      const db = getFirestoreDb();
+      const playersRef = collection(db, "rooms", roomId, "players");
+      const snap = await getDocs(playersRef);
+      const parts = snap.docs
+        .map((d) => d.data() as RoomPlayerDoc)
+        .filter((p) => p.role === "participant");
+      if (parts.length >= MAX_PARTICIPANTS) {
+        setError("자리가 가득 찼습니다.");
+        setJoinPending(false);
+        return;
+      }
+      const seat = parts.length;
+      const teamId: TeamId = seat % 2 === 0 ? "A" : "B";
+      const playerRef = doc(db, "rooms", roomId, "players", uid);
+      const meDoc = snap.docs.find((d) => d.id === uid)?.data() as RoomPlayerDoc | undefined;
+      await setDoc(
+        playerRef,
+        {
+          role: "participant",
+          seat,
+          teamId,
+          ready: false,
+          lastSeenAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setJoinPending(false);
+    }
+  };
+
   const handleReadyToggle = async () => {
     if (!roomId || !uid) return;
-    const me = players.find((p) => p.uid === uid);
-    const nextReady = !me?.ready;
+    const current = players.find((p) => p.uid === uid);
+    const nextReady = !current?.ready;
+    setReadyPending(true);
     try {
       await updatePlayerReady(roomId, nextReady);
     } catch (err) {
       setError((err as Error).message);
+    } finally {
+      setReadyPending(false);
     }
   };
 
@@ -148,140 +426,108 @@ export default function LobbyPage() {
     router.push(`/game/${roomId}`);
   };
 
+  // ─── need-join: 방 참가 폼 ───────────────────────────────────
   if (status === "need-join") {
     return (
-      <main className="min-h-screen p-8 flex flex-col items-center justify-center">
-        <h1 className="text-2xl font-bold mb-4">로비 참가</h1>
-        <p className="text-gray-600 mb-4">방 코드: {code}</p>
-        <form onSubmit={handleJoin} className="w-full max-w-sm space-y-3">
-          <input
-            type="text"
-            placeholder="닉네임"
-            value={joinNickname}
-            onChange={(e) => setJoinNickname(e.target.value)}
-            className="w-full px-4 py-2 border rounded-lg"
-            maxLength={20}
-            required
-          />
-          <button
-            type="submit"
-            disabled={joinPending || !joinNickname.trim()}
-            className="w-full py-2 bg-green-600 text-white rounded-lg disabled:opacity-50"
-          >
-            {joinPending ? "참가 중..." : "참가하기"}
-          </button>
-        </form>
-        {error && <p className="text-red-600 mt-2">{error}</p>}
+      <main className="min-h-dvh bg-dq-charcoalDeep text-dq-white px-4 py-8 flex flex-col items-center justify-center">
+        <div className="w-full max-w-sm space-y-4">
+          <h1 className="text-xl font-bold text-center">로비 참가</h1>
+          <p className="text-dq-white/70 text-sm text-center font-mono tracking-widest">
+            {code.toUpperCase()}
+          </p>
+          <form onSubmit={handleJoin} className="space-y-3">
+            <input
+              type="text"
+              placeholder="닉네임"
+              value={joinNickname}
+              onChange={(e) => setJoinNickname(e.target.value)}
+              className="w-full px-4 py-2.5 rounded-xl bg-dq-black border border-white/10 text-dq-white placeholder:text-dq-white/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-dq-redLight"
+              maxLength={20}
+              required
+            />
+            <button
+              type="submit"
+              disabled={joinPending || !joinNickname.trim()}
+              className="w-full min-h-[44px] py-2.5 rounded-xl font-bold bg-dq-red text-dq-white hover:bg-dq-redLight disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dq-redLight"
+            >
+              {joinPending ? "참가 중…" : "참가하기"}
+            </button>
+          </form>
+          {error && (
+            <p className="text-dq-redLight text-sm text-center">{error}</p>
+          )}
+        </div>
       </main>
     );
   }
 
   if (status === "loading") {
     return (
-      <main className="min-h-screen p-8 flex items-center justify-center">
-        <p className="text-gray-500">로딩 중...</p>
+      <main className="min-h-dvh bg-dq-charcoalDeep text-dq-white flex items-center justify-center">
+        <p className="text-dq-white/60">로딩 중…</p>
       </main>
     );
   }
 
-  const me = players.find((p) => p.uid === uid);
-
   return (
-    <main className="min-h-screen p-8">
-      <h1 className="text-2xl font-bold mb-2">로비</h1>
-      <p className="text-gray-600 mb-6">방 코드: {code}</p>
+    <main className="min-h-dvh bg-dq-charcoalDeep text-dq-white pb-[calc(80px+env(safe-area-inset-bottom))]">
+      <div className="max-w-lg mx-auto px-4 py-6 lg:max-w-4xl lg:grid lg:grid-cols-[420px_1fr] lg:gap-6 lg:pb-6">
+        {error && (
+          <div className="mb-4 p-3 rounded-xl bg-dq-redDark/20 border border-dq-red/30 text-dq-redLight text-sm">
+            {error}
+          </div>
+        )}
 
-      {error && (
-        <p className="text-red-600 mb-4 p-3 bg-red-50 rounded">{error}</p>
-      )}
+        <div className="space-y-4 lg:space-y-6">
+          <RoomHeader code={code} onCopy={handleCopyCode} />
+          <PlayerSection
+            players={players}
+            hostUid={hostUid}
+            myUid={uid}
+          />
+          <SpectatorSection players={players} myUid={uid} />
+        </div>
 
-      <section className="mb-8">
-        <h2 className="font-semibold text-lg mb-3">참가자</h2>
-        <ul className="space-y-2">
-          {players
-            .filter((p) => p.role === "participant")
-            .map((p) => (
-              <li
-                key={p.uid}
-                className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg"
-              >
-                <span className="font-medium">
-                  {p.nickname}
-                  {p.uid === hostUid && " (방장)"}
-                  {p.uid === uid && " (나)"}
-                </span>
-                <span
-                  className={`px-2 py-0.5 rounded text-sm ${
-                    p.ready ? "bg-green-200 text-green-800" : "bg-gray-200"
-                  }`}
-                >
-                  {p.ready ? "Ready" : "대기"}
-                </span>
-                <span className="text-sm text-gray-500">팀 {p.teamId ?? "-"}</span>
-              </li>
-            ))}
-        </ul>
-      </section>
+        {/* 데스크톱: 우측에 나가기 등 */}
+        <div className="hidden lg:block lg:space-y-4">
+          <div className="bg-dq-charcoal border border-white/10 rounded-2xl p-4">
+            <button
+              type="button"
+              onClick={handleLeaveRoom}
+              disabled={leavePending}
+              className="w-full min-h-[44px] py-2 rounded-xl border border-white/10 bg-dq-black text-dq-white hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-dq-redLight disabled:opacity-50"
+            >
+              {leavePending ? "나가는 중…" : "나가기"}
+            </button>
+          </div>
+        </div>
+      </div>
 
-      <section className="mb-6">
+      {/* 모바일: 나가기 링크(상단 또는 액션바 위) */}
+      <div className="fixed top-4 right-4 z-10 lg:hidden">
         <button
+          type="button"
           onClick={handleLeaveRoom}
           disabled={leavePending}
-          className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          className="px-3 py-1.5 rounded-xl text-sm font-medium text-dq-white/80 hover:text-dq-white hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-dq-redLight disabled:opacity-50"
         >
-          {leavePending ? "나가는 중..." : "방 나가기"}
+          나가기
         </button>
-      </section>
+      </div>
 
       {me && (
-        <section className="mb-8 p-4 bg-blue-50 rounded-lg">
-          <h2 className="font-semibold mb-3">내 설정</h2>
-          <div className="flex flex-wrap gap-4 items-center">
-            <button
-              onClick={handleReadyToggle}
-              className={`px-4 py-2 rounded-lg font-medium ${
-                me.ready
-                  ? "bg-green-600 text-white"
-                  : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-              }`}
-            >
-              {me.ready ? "Ready" : "Ready 토글"}
-            </button>
-            <div className="flex gap-2">
-              <button
-                onClick={() => handleTeamSelect("A")}
-                className={`px-4 py-2 rounded-lg ${
-                  me.teamId === "A"
-                    ? "bg-red-600 text-white"
-                    : "bg-gray-200 hover:bg-red-100"
-                }`}
-              >
-                팀 A (레드)
-              </button>
-              <button
-                onClick={() => handleTeamSelect("B")}
-                className={`px-4 py-2 rounded-lg ${
-                  me.teamId === "B"
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-200 hover:bg-blue-100"
-                }`}
-              >
-                팀 B (블루)
-              </button>
-            </div>
-          </div>
-        </section>
-      )}
-
-      {isHost && (
-        <section>
-          <button
-            onClick={handleStartGame}
-            className="px-6 py-3 bg-amber-500 text-white font-semibold rounded-lg hover:bg-amber-600"
-          >
-            게임 시작
-          </button>
-        </section>
+        <ActionBar
+          me={me}
+          isHost={isHost}
+          participants={participants}
+          canJoinAsSpectator={canJoinAsParticipant}
+          onReadyToggle={handleReadyToggle}
+          onTeamSelect={handleTeamSelect}
+          onStartGame={handleStartGame}
+          onSpectatorJoin={handleSpectatorJoin}
+          readyPending={readyPending}
+          joinPending={joinPending}
+        />
       )}
     </main>
   );

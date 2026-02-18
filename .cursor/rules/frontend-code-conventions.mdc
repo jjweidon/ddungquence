@@ -1,0 +1,66 @@
+---
+description: USE WHEN writing or refactoring frontend code (Next.js/React/TS/Tailwind). Apply project conventions (thin pages, domain-first, predictable hooks).
+globs: src/**/*.ts,src/**/*.tsx
+alwaysApply: false
+---
+# 프론트엔드 코드 컨벤션 (Next.js App Router + React + TS + Tailwind)
+
+## 목표
+- 읽기 쉬움(위→아래 흐름)
+- 예측 가능(이름이 계약)
+- 도메인 중심(UI는 얇게)
+- Firestore 비용 최적화(구독/업데이트 경로 단순화)
+
+## 구조/책임 분리
+- `page.tsx`는 **조립(Composition)**만 담당한다(로직 넣지 않기).
+- “흐름 제어”는 Guard/Wrapper로 분리한다.
+  - 예: `<AuthGuard><RoomGuard><GameScreen/></RoomGuard></AuthGuard>`
+- 도메인 규칙/판정은 `src/domain`로 내린다(pure function).
+- Firestore 접근은 `src/repositories`로만 한다.
+
+## 가독성 규칙
+- 매직 넘버 금지 → 의미 있는 상수로 치환(BOARD_SIZE=10, SEQUENCE_LEN=5 등)
+- 중첩 삼항 금지 → early return / switch 사용
+- 복잡한 조건은 변수로 이름을 붙인다
+- 역할/상태에 따라 코드 경로가 갈리면 컴포넌트 분리
+  - `isMyTurn ? <MyTurnActionBar/> : <OpponentTurnActionBar/>`
+
+## 예측 가능성 규칙
+- 훅 반환 shape를 표준화한다(Loadable 권장)
+```ts
+export type Loadable<T> =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "error"; error: Error }
+  | { status: "success"; data: T };
+```
+- 이름이 계약이다
+  - `fetch*`: 조회 전용
+  - `ensure* / sync* / bootstrap*`: 내부 부작용 가능(로그인/리다이렉트/상태 변경)
+- 액션/이벤트는 Discriminated Union + exhaustive check 강제
+
+## 상태관리
+- 전역은 Zustand로 시작(과도한 전역화 금지)
+- selector 훅으로 필요한 조각만 구독
+```ts
+export const useTxPending = () => useGameStore((s) => s.txPending);
+```
+- Firestore 서버 상태는 “구독 훅”에서 스토어에 반영한다.
+
+## Next.js(App Router)
+- `'use client'` 최소화: Firebase SDK 사용하는 컴포넌트만 client로.
+- 라우트 전용 컴포넌트는 colocate, 공유가 검증되면 `shared/ui`로 승격.
+
+## 성능
+- 보드 Cell은 `React.memo` + stable props로 리렌더 최소화.
+- 구독 문서 수 최소화(public 1 + private 1).
+
+## TailwindCSS
+- 클래스 결합은 `cn()`(clsx+tailwind-merge) 유틸 사용.
+- 반복 UI 패턴은 컴포넌트화(`Chip`, `CardTile`, `Badge`).
+- 임의 값(`w-[37px]`) 남발 금지. 토큰/스케일 우선.
+
+## 공통 스타일
+- TypeScript strict 유지
+- 파일/폴더: `kebab-case`, 컴포넌트: `PascalCase`, 훅: `useXxx`
+- 기본 export 금지(일관성)

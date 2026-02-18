@@ -1,0 +1,140 @@
+---
+description: USE WHEN creating/modifying board layout JSON, mapping cardId↔cellId, or implementing board rendering/validation.
+globs: public/board-layout*.json,src/domain/board/**/*.json,src/domain/board/**/*.ts,src/domain/board/**/*.tsx
+alwaysApply: false
+---
+# 보드 레이아웃(카드 배치) — 정적 JSON만 사용
+
+## 규칙(고정)
+- 10x10 게임 보드의 카드 배치는 **고정**이며 셔플/생성하지 않는다.
+- **cellId = row × 10 + col** (0..99, row-major)
+- 코너 cellId: **0, 9, 90, 99** (각각 `o_o_1..4`)
+- 잭은 보드에 등장하지 않는다.
+- 보드 레이아웃(카드 배치)은 DB에 저장하지 않는다.
+  - Firestore에는 **칩 점유(chipsByCell)**만 저장한다.
+
+## 구현 방식(필수)
+- 레이아웃은 **상수 JSON 파일**로 제공한다.
+  - 예: `public/board-layout.json` 또는 `src/domain/board/board-layout.v1.json`
+- 클라이언트는 이 JSON을 읽어서만 사용한다(코드 상수/하드코딩 금지).
+
+## 카드 ID 규격
+- `{suit}_{rank}_{variant}`
+  - suit: `spade|heart|diamond|clover|o`
+  - rank: `2..10|j|q|k|a` (코너는 `o_o_1..4`)
+  - variant: `1|2` (코너는 1..4)
+
+## board-layout.v1 (권장 JSON)
+> 아래 배열 인덱스가 cellId다(길이 100).
+
+```json
+[
+  "o_o_1",
+  "spade_2_1",
+  "spade_3_1",
+  "spade_4_1",
+  "spade_5_1",
+  "spade_6_1",
+  "spade_7_1",
+  "spade_8_1",
+  "spade_9_1",
+  "o_o_2",
+  "clover_6_1",
+  "clover_5_1",
+  "clover_4_1",
+  "clover_3_1",
+  "clover_2_1",
+  "heart_a_1",
+  "heart_k_1",
+  "heart_q_1",
+  "heart_10_1",
+  "spade_10_1",
+  "clover_7_1",
+  "spade_a_1",
+  "diamond_2_1",
+  "diamond_3_1",
+  "diamond_4_1",
+  "diamond_5_1",
+  "diamond_6_1",
+  "diamond_7_1",
+  "heart_9_1",
+  "spade_q_1",
+  "clover_8_1",
+  "spade_k_1",
+  "clover_6_2",
+  "clover_5_2",
+  "clover_4_2",
+  "clover_3_2",
+  "clover_2_2",
+  "diamond_8_1",
+  "heart_8_1",
+  "spade_k_2",
+  "clover_9_1",
+  "spade_q_2",
+  "clover_7_2",
+  "heart_6_1",
+  "heart_5_1",
+  "heart_4_1",
+  "heart_a_2",
+  "diamond_9_1",
+  "heart_7_1",
+  "spade_a_2",
+  "clover_10_1",
+  "spade_10_2",
+  "clover_8_2",
+  "heart_7_2",
+  "heart_2_1",
+  "heart_3_1",
+  "heart_k_2",
+  "diamond_10_1",
+  "heart_6_2",
+  "diamond_2_2",
+  "clover_q_1",
+  "spade_9_2",
+  "clover_9_2",
+  "heart_8_2",
+  "heart_9_2",
+  "heart_10_2",
+  "heart_q_2",
+  "diamond_q_1",
+  "heart_5_2",
+  "diamond_3_2",
+  "clover_k_1",
+  "spade_8_2",
+  "clover_10_2",
+  "clover_q_2",
+  "clover_k_2",
+  "clover_a_1",
+  "diamond_a_1",
+  "diamond_k_1",
+  "heart_4_2",
+  "diamond_4_2",
+  "clover_a_2",
+  "spade_7_2",
+  "spade_6_2",
+  "spade_5_2",
+  "spade_4_2",
+  "spade_3_2",
+  "spade_2_2",
+  "heart_2_2",
+  "heart_3_2",
+  "diamond_5_2",
+  "o_o_3",
+  "diamond_a_2",
+  "diamond_q_2",
+  "diamond_k_2",
+  "diamond_10_2",
+  "diamond_9_2",
+  "diamond_8_2",
+  "diamond_7_2",
+  "diamond_6_2",
+  "o_o_4"
+]
+```
+
+## 문서 상 불일치 메모(중요)
+- `docs/01-game-rules.md`의 `boardImages`를 카드 ID로 변환하는 과정에서,
+  - `clover_7_1`이 2번 등장하는 것으로 해석된다.
+- 본 프로젝트의 카드 ID 규격(variant 1/2)과 “카드 2장=보드 2칸” 매핑을 성립시키려면
+  - 두 칸 중 하나는 `clover_7_2`여야 한다.
+- 위 JSON은 이를 해결하기 위해 **cellId=42(row=4,col=2)**를 `clover_7_2`로 보정한 버전이다.
