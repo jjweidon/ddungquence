@@ -7,7 +7,7 @@ Next.js 클라이언트가 Firebase(Auth + Firestore)를 직접 사용해 **로�
 
 ```mermaid
 flowchart LR
-  U1[Player Browser/PWA] -->|Anon Auth| AUTH[Firebase Auth]
+  U1[Player Browser/PWA] -->|Google Auth| AUTH[Firebase Auth]
   U1 -->|read/write| FS[(Firestore)]
   U2[Other Players] --> AUTH
   U2 --> FS

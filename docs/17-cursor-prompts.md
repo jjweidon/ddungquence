@@ -9,15 +9,15 @@
 ### 프롬프트
 - Next.js(App Router) + TypeScript + Tailwind 프로젝트를 만든 뒤, 아래 구조로 폴더를 구성해줘:
   - `src/lib/firebase/client.ts`
-  - `src/features/auth/ensureAnonAuth.ts`
+  - `src/features/auth/ensureAuth.ts`
   - `src/app/page.tsx` (landing)
   - `src/app/lobby/[code]/page.tsx`
   - `src/app/game/[roomId]/page.tsx`
-- `ensureAnonAuth()`를 만들어서 앱 진입 시 자동 익명 로그인되게 해줘.
+- `ensureAuth()`를 만들어서 앱 진입 시 Google 로그인 팝업으로 uid를 발급받게 해줘.
 - 환경변수는 `NEXT_PUBLIC_FIREBASE_*`만 사용해.
 
 ### 완료 기준
-- `/` 접속 시 uid가 발급되고 콘솔에 uid가 출력된다.
+- `/` 접속 시 Google 로그인 후 uid가 발급되고 콘솔에 uid가 출력된다.
 
 ---
 

@@ -6,8 +6,9 @@
 3. `firebaseConfig` 값 확보(apiKey, authDomain, projectId 등)
 
 ## 2) Authentication 설정
-- Authentication → Sign-in method → **Anonymous** 활성화
-- (선택) Google 로그인은 P1
+- Authentication → Sign-in method → **Google** 활성화
+- Google Sign-In은 Spark(무료) 플랜에서 **추가 비용 없음**
+- (필수) Google Cloud Console → APIs & Services → OAuth consent screen → User type "External" 선택 후 앱 이름/이메일 등록
 
 ## 3) Firestore 설정
 - Firestore Database 생성(Production 모드 권장)
@@ -59,14 +60,14 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 ```
 
-## 8) 익명 로그인(클라이언트)
-- `src/features/auth/useAnonAuth.ts`
+## 8) Google 로그인(클라이언트)
+- `src/features/auth/ensureAuth.ts`
 
 ```ts
-import { signInAnonymously, onAuthStateChanged } from "firebase/auth";
+import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged } from "firebase/auth";
 import { auth } from "@/lib/firebase/client";
 
-export function ensureAnonAuth(): Promise<string> {
+export function ensureAuth(): Promise<string> {
   return new Promise((resolve, reject) => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       try {
@@ -75,7 +76,8 @@ export function ensureAnonAuth(): Promise<string> {
           resolve(user.uid);
           return;
         }
-        const cred = await signInAnonymously(auth);
+        const provider = new GoogleAuthProvider();
+        const cred = await signInWithPopup(auth, provider);
         unsub();
         resolve(cred.user.uid);
       } catch (e) {
@@ -98,6 +100,6 @@ Cursor로 빠르게 돌리려면 에뮬레이터를 켜는 편이 좋다.
 - 이벤트 로그는 디버깅 시에만 옵션으로 켠다(구독 비용 증가)
 
 ## DoD 체크리스트
-- [ ] 익명 로그인 uid가 정상 발급되고 새로고침 후 유지된다
+- [ ] Google 로그인 uid가 정상 발급되고 새로고침 후 유지된다
 - [ ] Firestore read/write가 개발 환경에서 정상 동작한다
 - [ ] Vercel에 env가 주입되어 배포 후에도 연결된다

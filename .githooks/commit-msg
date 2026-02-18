@@ -1,0 +1,40 @@
+#!/bin/sh
+# commit-msg: docs/12-git-conventions.md 기반 Conventional Commits 검증
+
+commit_msg_file="$1"
+first_line=$(head -n1 "$commit_msg_file")
+
+# merge commit, revert 등은 통과
+if echo "$first_line" | grep -qE '^(Merge|Revert|Initial commit)'; then
+  exit 0
+fi
+
+# 형식: <type>(scope)?: <제목>
+# type: feat, fix, docs, refactor, test, chore, perf
+# scope: 선택, 영문/숫자/하이픈/언더스코어
+if ! echo "$first_line" | grep -qE '^(feat|fix|docs|refactor|test|chore|perf)(\([a-zA-Z0-9_-]+\))?: .+'; then
+  echo ""
+  echo "❌ 커밋 메시지가 docs/12-git-conventions.md 규격을 따르지 않습니다."
+  echo ""
+  echo "형식: <type>(scope): <제목>"
+  echo "예시:"
+  echo "  feat(lobby): 방 생성 시 roomCodes 매핑 추가"
+  echo "  fix(game): one-eyed jack 시퀀스 칩 제거 불가 처리"
+  echo "  docs: Firebase 설정 가이드 추가"
+  echo ""
+  echo "type: feat, fix, docs, refactor, test, chore, perf"
+  echo ""
+  exit 1
+fi
+
+# 제목 길이: 72자 제한 (Git 권장)
+subject=$(echo "$first_line" | sed -E 's/^[^:]+: //')
+length=${#subject}
+if [ "$length" -gt 72 ]; then
+  echo ""
+  echo "❌ 제목이 72자를 초과합니다 ($length자). 50자 내외 권장."
+  echo ""
+  exit 1
+fi
+
+exit 0

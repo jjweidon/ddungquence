@@ -5,10 +5,10 @@
 ---
 
 ## M0. 프로젝트 부트스트랩
-- [ ] Next.js(App Router) + TS + Tailwind 초기화
-- [ ] ESLint/Prettier 설정
-- [ ] Firebase SDK 연결 + 익명 로그인
-- [ ] 기본 라우팅: `/`(landing), `/lobby/[code]`, `/game/[roomId]`
+- [x] Next.js(App Router) + TS + Tailwind 초기화
+- [x] ESLint/Prettier 설정
+- [x] Firebase SDK 연결 (익명 인증 사용, Google은 M1 이후)
+- [x] 기본 라우팅: `/`(landing), `/lobby/[code]`, `/game/[roomId]`
 
 **DoD**
 - [ ] 배포(Vercel) 후 Firebase 연결이 정상 동작
