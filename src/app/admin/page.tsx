@@ -167,13 +167,15 @@ function PasswordGate({
   );
 }
 
-// ─── 관리자 대시보드 (DB 초기화 버튼) ─────────────────────────────
+// ─── 관리자 대시보드 (DB 초기화·미사용 룸 정리) ─────────────────────
 function AdminDashboard() {
   const [resetPending, setResetPending] = useState(false);
+  const [cleanupPending, setCleanupPending] = useState(false);
   const [message, setMessage] = useState<{ type: "ok" | "error"; text: string } | null>(null);
   const [password, setPassword] = useState("");
   const [confirmText, setConfirmText] = useState("");
   const [showConfirm, setShowConfirm] = useState(false);
+  const [cleanupPassword, setCleanupPassword] = useState("");
 
   const handleResetClick = useCallback(() => {
     setMessage(null);
@@ -207,6 +209,37 @@ function AdminDashboard() {
     }
   }, [password, confirmText, resetPending]);
 
+  const handleCleanup = useCallback(async () => {
+    if (!cleanupPassword.trim() || cleanupPending) return;
+    setMessage(null);
+    setCleanupPending(true);
+    try {
+      const res = await fetch("/api/admin/cleanup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: cleanupPassword.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMessage({ type: "error", text: data.error ?? "미사용 룸 정리에 실패했습니다." });
+        setCleanupPending(false);
+        return;
+      }
+      const detail =
+        typeof data.deletedRooms === "number"
+          ? ` (방 ${data.deletedRooms}개, 코드 ${data.deletedCodes ?? 0}개 삭제)`
+          : "";
+      setMessage({
+        type: "ok",
+        text: (data.message ?? "미사용 룸 정리가 완료되었습니다.") + detail,
+      });
+    } catch {
+      setMessage({ type: "error", text: "네트워크 오류가 발생했습니다." });
+    } finally {
+      setCleanupPending(false);
+    }
+  }, [cleanupPassword, cleanupPending]);
+
   const handleLogout = useCallback(() => {
     sessionStorage.removeItem(STORAGE_KEY);
     window.location.reload();
@@ -229,6 +262,31 @@ function AdminDashboard() {
 
       {!showConfirm ? (
         <>
+          <section className="bg-dq-charcoal border border-white/10 rounded-2xl p-4">
+            <h2 className="text-xs font-bold tracking-widest text-dq-white/70 uppercase mb-3">
+              미사용 룸 정리
+            </h2>
+            <p className="text-xs text-dq-white/70 mb-3">
+              24시간 미갱신 로비·7일 미갱신 종료(ended) 방과 해당 방 코드를 삭제합니다.
+            </p>
+            <TextInput
+              type="password"
+              placeholder="관리자 비밀번호"
+              value={cleanupPassword}
+              onChange={(e) => setCleanupPassword(e.target.value)}
+              autoComplete="current-password"
+              className="mb-3"
+            />
+            <SecondaryButton
+              type="button"
+              onClick={handleCleanup}
+              disabled={!cleanupPassword.trim() || cleanupPending}
+              pending={cleanupPending}
+            >
+              미사용 룸 정리 실행
+            </SecondaryButton>
+          </section>
+
           <section className="bg-dq-charcoal border border-white/10 rounded-2xl p-4">
             <h2 className="text-xs font-bold tracking-widest text-dq-white/70 uppercase mb-3">
               DB 초기화

@@ -50,6 +50,14 @@
 - 영향 범위: `src/features/game/gameApi.ts` handSize, 문서(01, 10)
 - 후속 작업: 없음
 
+### [D-20260220-03] 미사용 게임룸/roomCodes 정리(Admin cleanup)
+- 맥락: Firestore 비용·데이터 최적화를 위해 사용되지 않는 방·코드를 주기적으로 제거하고 싶음
+- 고려한 옵션: (1) Cloud Functions 스케줄 (2) Admin API + Vercel Cron (3) 수동 Admin UI만
+- 결정: **Admin API `POST /api/admin/cleanup`** 추가. 로비 24시간·ended 7일 미갱신 방을 정리. 실행은 Vercel Cron 또는 수동 호출.
+- 근거: 서버리스 우선 원칙에 맞고, 정리 기준(기간)을 코드에서 쉽게 조정 가능
+- 영향 범위: `src/app/api/admin/cleanup/route.ts`, `firestore.indexes.json`(status+updatedAt 복합 인덱스), docs
+- 후속 작업: 필요 시 Vercel Cron으로 주기 호출 설정
+
 ## 3) 핵심 리스크
 
 ### R-1 비용 폭증(Reads)

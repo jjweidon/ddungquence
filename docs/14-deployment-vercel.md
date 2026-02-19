@@ -14,8 +14,8 @@ Vercel Project Settings → Environment Variables에 다음을 등록:
 - `NEXT_PUBLIC_FIREBASE_APP_ID`
 
 관리자 페이지(`/admin`) 사용 시(선택):
-- `ADMIN_PASSWORD`: 관리자 비밀번호(접속·DB 초기화 시 사용)
-- `FIREBASE_SERVICE_ACCOUNT_KEY`: Firebase 서비스 계정 키 JSON 전체를 문자열로(DB 초기화에 필요). **비공개 유지**
+- `ADMIN_PASSWORD`: 관리자 비밀번호(접속·DB 초기화·미사용 룸 정리 시 사용)
+- `FIREBASE_SERVICE_ACCOUNT_KEY`: Firebase 서비스 계정 키 JSON 전체를 문자열로(DB 초기화·정리에 필요). **비공개 유지**
 
 ## 3) Firebase Auth Authorized Domains
 Firebase Console → Authentication → Settings → Authorized domains에:
@@ -27,13 +27,17 @@ Firebase Console → Authentication → Settings → Authorized domains에:
 - 기본은 `next build` / `next start`(Vercel이 자동)
 - 서버리스 함수는 사용하지 않는 방향(비용/복잡도 최소화)
 
-## 5) PWA(선택)
+## 5) 미사용 룸 정리(선택)
+- `POST /api/admin/cleanup`에 `{ "password": "ADMIN_PASSWORD" }`로 호출하면, 24시간 미갱신 로비·7일 미갱신 ended 방과 해당 `roomCodes`를 삭제한다.
+- 주기 실행: Vercel Cron(또는 외부 cron)으로 위 API를 호출하도록 설정 가능.
+
+## 6) PWA(선택)
 - MVP에서는 생략 가능
 - 도입 시:
   - manifest/아이콘
   - 서비스워커(캐시 전략)
   - 오프라인 UX 정책(턴 액션 금지)
 
-## 6) DoD 체크리스트
+## 7) DoD 체크리스트
 - [ ] Vercel 배포 후 Google 로그인 및 Firestore 연결 정상
 - [ ] iOS Safari에서도 기본 플로우가 동작
