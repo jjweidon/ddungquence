@@ -37,6 +37,8 @@ export interface PublicGameState {
   discardTopBySeat: Record<string, string | null>;
   scoreByTeam: Record<TeamId, number>;
   deckMeta: { drawLeft: number; reshuffles: number };
+  /** One-eyed Jack으로 제거된 셀: 바로 다음 플레이어는 Two-eyed로 여기에 배치 불가 */
+  oneEyeLockedCell?: number | null;
   winner?: { teamId: TeamId; atTurn: number };
   lastAction?: { uid: string; type: string; at: Timestamp };
 }

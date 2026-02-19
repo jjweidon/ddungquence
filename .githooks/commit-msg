@@ -11,8 +11,8 @@ fi
 
 # 형식: <type>(scope)?: <제목>
 # type: feat, fix, docs, refactor, test, chore, perf
-# scope: 선택, 영문/숫자/하이픈/언더스코어
-if ! echo "$first_line" | grep -qE '^(feat|fix|docs|refactor|test|chore|perf)(\([a-zA-Z0-9_-]+\))?: .+'; then
+# scope: 선택, 영문/숫자/하이픈/언더스코어/쉼표
+if ! echo "$first_line" | grep -qE '^(feat|fix|docs|refactor|test|chore|perf)(\([a-zA-Z0-9_,-]+\))?: .+'; then
   echo ""
   echo "❌ 커밋 메시지가 docs/12-git-conventions.md 규격을 따르지 않습니다."
   echo ""

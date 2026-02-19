@@ -185,8 +185,11 @@ function ActionBar({
   joinPending: boolean;
   startPending: boolean;
 }) {
+  const redCount = participants.filter((p) => p.teamId === "A").length;
+  const blueCount = participants.filter((p) => p.teamId === "B").length;
+  const teamsBalanced = redCount > 0 && blueCount > 0 && redCount === blueCount;
   const allReady =
-    participants.length >= 2 && participants.every((p) => p.ready);
+    participants.length >= 2 && teamsBalanced && participants.every((p) => p.ready);
   const isParticipant = me?.role === "participant";
 
   return (
@@ -383,10 +386,28 @@ export default function LobbyPage() {
         setJoinPending(false);
         return;
       }
-      const seat = parts.length;
-      const teamId: TeamId = seat % 2 === 0 ? "A" : "B";
+
+      // 현재 팀 카운트 기준으로 더 적은 팀에 배정 (동수면 레드 우선)
+      const redCount = parts.filter((p) => p.teamId === "A").length;
+      const blueCount = parts.filter((p) => p.teamId === "B").length;
+      const teamId: TeamId = redCount <= blueCount ? "A" : "B";
+
+      // 인터리빙 seat: 레드 = 짝수(0,2,...), 블루 = 홀수(1,3,...)
+      const occupiedSeats = new Set(
+        parts.map((p) => p.seat).filter((s) => s !== undefined)
+      );
+      let seat = 0;
+      if (teamId === "A") {
+        for (let s = 0; ; s += 2) {
+          if (!occupiedSeats.has(s)) { seat = s; break; }
+        }
+      } else {
+        for (let s = 1; ; s += 2) {
+          if (!occupiedSeats.has(s)) { seat = s; break; }
+        }
+      }
+
       const playerRef = doc(db, "rooms", roomId, "players", uid);
-      const meDoc = snap.docs.find((d) => d.id === uid)?.data() as RoomPlayerDoc | undefined;
       await setDoc(
         playerRef,
         {

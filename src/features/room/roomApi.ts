@@ -7,6 +7,7 @@ import {
   deleteDoc,
   onSnapshot,
   serverTimestamp,
+  writeBatch,
   type Unsubscribe,
 } from "firebase/firestore";
 import { getFirestoreDb } from "@/lib/firebase/client";
@@ -119,17 +120,34 @@ export async function joinRoomByCode(
   const roomId = roomCodeSnap.data().roomId as string;
   const playersRef = collection(db, "rooms", roomId, "players");
   const playersSnap = await getDocs(playersRef);
-  const participants = playersSnap.docs.filter(
-    (d) => (d.data() as RoomPlayerDoc).role === "participant"
-  );
-  const participantCount = participants.length;
+  const participants = playersSnap.docs
+    .map((d) => d.data() as RoomPlayerDoc)
+    .filter((p) => p.role === "participant");
   const maxPlayers = 4;
-  if (participantCount >= maxPlayers) {
+  if (participants.length >= maxPlayers) {
     throw new Error("방이 가득 찼습니다.");
   }
-  // 입장 순서대로 레드(A) - 블루(B) - 레드 - 블루 배정
-  const seat = participantCount;
-  const teamId: TeamId = seat % 2 === 0 ? "A" : "B";
+
+  // 현재 팀 카운트 기준으로 더 적은 팀에 배정 (동수면 레드 우선)
+  const redCount = participants.filter((p) => p.teamId === "A").length;
+  const blueCount = participants.filter((p) => p.teamId === "B").length;
+  const teamId: TeamId = redCount <= blueCount ? "A" : "B";
+
+  // 인터리빙 seat: 레드 = 짝수(0,2,...), 블루 = 홀수(1,3,...)
+  // 비어있는 가장 낮은 슬롯에 배정 (누군가 나가도 seat 충돌 없음)
+  const occupiedSeats = new Set(
+    participants.map((p) => p.seat).filter((s) => s !== undefined)
+  );
+  let seat = 0;
+  if (teamId === "A") {
+    for (let s = 0; ; s += 2) {
+      if (!occupiedSeats.has(s)) { seat = s; break; }
+    }
+  } else {
+    for (let s = 1; ; s += 2) {
+      if (!occupiedSeats.has(s)) { seat = s; break; }
+    }
+  }
 
   const now = serverTimestamp();
   const playerRef = doc(db, "rooms", roomId, "players", uid);
@@ -291,9 +309,12 @@ export async function leaveRoom(roomId: string): Promise<void> {
   const isHost = hostUid === uid;
 
   const playerRef = doc(db, "rooms", roomId, "players", uid);
-  await deleteDoc(playerRef);
 
-  if (isHost && roomSnap.exists()) {
+  // player 삭제 + host 변경/방 삭제를 단일 batch로 원자적 처리
+  const batch = writeBatch(db);
+  batch.delete(playerRef);
+
+  if (isHost) {
     if (remaining.length > 0) {
       const sorted = [...remaining].sort((a, b) => {
         const seatA = a.seat ?? 999;
@@ -304,17 +325,15 @@ export async function leaveRoom(roomId: string): Promise<void> {
         return tsA - tsB;
       });
       const newHostUid = sorted[0].uid;
-      await setDoc(
-        roomRef,
-        { hostUid: newHostUid, updatedAt: serverTimestamp() },
-        { merge: true }
-      );
+      batch.set(roomRef, { hostUid: newHostUid, updatedAt: serverTimestamp() }, { merge: true });
     } else {
-      await deleteDoc(roomRef);
+      batch.delete(roomRef);
       if (roomCode) {
         const roomCodeRef = doc(db, "roomCodes", roomCode.trim().toUpperCase());
-        await deleteDoc(roomCodeRef);
+        batch.delete(roomCodeRef);
       }
     }
   }
+
+  await batch.commit();
 }
