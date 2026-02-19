@@ -15,10 +15,6 @@ import { collection, getDocs } from "firebase/firestore";
 import { getFirestoreDb } from "@/lib/firebase/client";
 
 // ─── 카드 타일 ──────────────────────────────────────────────────
-/**
- * 손패 카드 타일 — public/cards/webp/{cardId}.webp 이미지 사용
- * 내 차례일 때만 클릭 가능, 선택 시 ring 강조
- */
 function CardTile({
   cardId,
   selected,
@@ -82,7 +78,112 @@ function TeamBadge({ teamId }: { teamId?: string | null }) {
   );
 }
 
-// ─── 플레이어 스트립 ────────────────────────────────────────────
+// ─── 보드 그리드 플레이스홀더 ────────────────────────────────────
+function BoardGrid({ chipsByCell }: { chipsByCell?: Record<string, unknown> }) {
+  return (
+    <div className="w-full aspect-square grid grid-cols-10 gap-[2px] p-2 bg-dq-charcoal border border-white/10 rounded-2xl">
+      {Array.from({ length: 100 }, (_, i) => (
+        <div
+          key={i}
+          className="aspect-square rounded-[2px] border border-white/10 bg-dq-black/50"
+        />
+      ))}
+      {chipsByCell && Object.keys(chipsByCell).length > 0 && (
+        <span className="sr-only">칩 점유: {Object.keys(chipsByCell).length}칸</span>
+      )}
+    </div>
+  );
+}
+
+// ─── 덱 비주얼 ───────────────────────────────────────────────────
+function DeckVisual({ drawLeft }: { drawLeft?: number }) {
+  return (
+    <div className="flex flex-col items-center gap-3">
+      <p className="text-xs font-bold tracking-widest text-dq-white/50 uppercase">Deck</p>
+      <div className="relative w-16 h-24">
+        {[2, 1, 0].map((offset) => (
+          <div
+            key={offset}
+            className="absolute bg-dq-charcoal border border-white/20 rounded-md"
+            style={{ width: 56, height: 80, top: offset * 4, left: offset * 4 }}
+          />
+        ))}
+      </div>
+      <p className="text-sm font-mono text-dq-white/60">
+        {drawLeft !== undefined ? `${drawLeft}장` : "-"}
+      </p>
+    </div>
+  );
+}
+
+// ─── 플레이어 목록 패널 (데스크톱 좌측) ──────────────────────────
+function PlayerListPanel({
+  players,
+  game,
+  myUid,
+}: {
+  players: RoomPlayerDoc[];
+  game: PublicGameState | undefined;
+  myUid: string | null;
+}) {
+  const participants = sortParticipantsRedBlue(players);
+
+  return (
+    <div className="bg-dq-charcoal border border-white/10 rounded-2xl p-4 flex flex-col gap-3 h-full">
+      <h2 className="text-xs font-bold tracking-widest text-dq-white/50 uppercase">
+        Player List
+      </h2>
+      <div className="flex flex-col gap-2">
+        {participants.map((p) => {
+          const isCurrentTurn = game?.currentUid === p.uid;
+          const isMe = p.uid === myUid;
+          const teamBorder =
+            p.teamId === "A"
+              ? "border-dq-red"
+              : p.teamId === "B"
+                ? "border-blue-500"
+                : "border-white/20";
+          return (
+            <div
+              key={p.uid}
+              className={[
+                "flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all",
+                isCurrentTurn
+                  ? "bg-dq-redLight/10 border-dq-redLight/40 ring-1 ring-dq-redLight/40"
+                  : "bg-dq-black border-white/10",
+              ].join(" ")}
+            >
+              <div
+                className={[
+                  "size-8 shrink-0 rounded-md border-2 bg-dq-charcoalDeep",
+                  teamBorder,
+                ].join(" ")}
+              />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1 flex-wrap">
+                  {isMe && (
+                    <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-white/15 text-dq-white border border-white/20">
+                      ME
+                    </span>
+                  )}
+                  {isCurrentTurn && (
+                    <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-dq-red/20 text-dq-redLight border border-dq-red/30">
+                      TURN
+                    </span>
+                  )}
+                  <TeamBadge teamId={p.teamId} />
+                </div>
+                <p className="text-sm text-dq-white/90 truncate mt-0.5">{p.nickname}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── 플레이어 스트립 (모바일 가로 스크롤) ────────────────────────
 function PlayerStrip({
   players,
   game,
@@ -132,6 +233,95 @@ function PlayerStrip({
   );
 }
 
+// ─── 손패 섹션 ───────────────────────────────────────────────────
+function HandSection({
+  hand,
+  game,
+  isMyTurn,
+  me,
+  selectedCard,
+  onSelectCard,
+  layout,
+}: {
+  hand: PrivateHandDoc | null;
+  game: PublicGameState | undefined;
+  isMyTurn: boolean;
+  me: RoomPlayerDoc | undefined;
+  selectedCard: string | null;
+  onSelectCard: (cardId: string) => void;
+  layout: "mobile" | "desktop";
+}) {
+  const gridClass =
+    layout === "desktop"
+      ? "grid grid-cols-3 gap-2"
+      : "flex gap-2 overflow-x-auto pb-2 snap-x snap-mandatory";
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xs font-bold tracking-widest text-dq-white/50 uppercase">
+          My Card
+        </h2>
+        {me && (
+          <div className="flex items-center gap-1.5">
+            <TeamBadge teamId={me.teamId} />
+            <span className="text-xs text-dq-white/50">{me.nickname}</span>
+          </div>
+        )}
+      </div>
+
+      {hand ? (
+        <div className={gridClass}>
+          {hand.cardIds.map((cardId, idx) => {
+            const dead = isDeadCard(cardId, game?.chipsByCell ?? {});
+            return (
+              <div key={`${cardId}-${idx}`} className={layout === "mobile" ? "snap-start shrink-0" : ""}>
+                <CardTile
+                  cardId={cardId}
+                  selected={selectedCard === cardId}
+                  isMyTurn={isMyTurn}
+                  isDead={dead}
+                  onClick={() => {
+                    if (dead) return;
+                    onSelectCard(cardId);
+                  }}
+                />
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="h-20 flex items-center justify-center">
+          <p className="text-dq-white/40 text-sm">손패 로딩 중…</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── 카드 놓기 버튼 ──────────────────────────────────────────────
+function PlaceCardButton({
+  isMyTurn,
+  selectedCard,
+}: {
+  isMyTurn: boolean;
+  selectedCard: string | null;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={!isMyTurn || !selectedCard}
+      className="w-full min-h-[48px] rounded-xl font-bold text-sm bg-dq-red text-dq-white hover:bg-dq-redLight disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dq-redLight transition-colors"
+    >
+      {isMyTurn
+        ? selectedCard
+          ? "카드 놓기"
+          : "카드를 선택하세요"
+        : "상대 턴 대기 중…"}
+    </button>
+  );
+}
+
 // ─── 게임 페이지 ─────────────────────────────────────────────────
 export default function GamePage() {
   const params = useParams();
@@ -164,7 +354,6 @@ export default function GamePage() {
       const currentUid = await ensureAnonAuth();
       setUid(currentUid);
 
-      // 방 종료 시 로비(랜딩)로 이동
       unsubRoomRef.current = subscribeToRoom(roomId, (roomData) => {
         if (!roomData) {
           router.push("/");
@@ -176,10 +365,8 @@ export default function GamePage() {
         }
       });
 
-      // 본인 손패 구독
       unsubHandRef.current = subscribeToHand(roomId, currentUid, setHand);
 
-      // 플레이어 목록 (1회 로드, M4에서 구독으로 전환 가능)
       await loadPlayers(roomId);
       setLoading(false);
     };
@@ -198,6 +385,10 @@ export default function GamePage() {
   const game = room?.game;
   const isMyTurn = !!uid && game?.currentUid === uid;
   const me = players.find((p) => p.uid === uid);
+
+  const handleSelectCard = (cardId: string) => {
+    setSelectedCard((prev) => (prev === cardId ? null : cardId));
+  };
 
   if (loading) {
     return (
@@ -225,7 +416,7 @@ export default function GamePage() {
   return (
     <main className="min-h-dvh bg-dq-charcoalDeep text-dq-white flex flex-col">
       {/* ── 상단 상태 표시줄 ─────────────────────────────────────── */}
-      <header className="px-4 py-3 bg-dq-charcoal border-b border-white/10 flex items-center justify-between gap-3">
+      <header className="shrink-0 px-4 py-3 bg-dq-charcoal border-b border-white/10 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <span className="text-xs text-dq-white/50">턴</span>
           <span className="font-mono font-bold text-dq-white text-sm">
@@ -238,7 +429,7 @@ export default function GamePage() {
           )}
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 lg:hidden">
             <span className="text-xs text-dq-white/50">덱</span>
             <span className="font-mono text-sm text-dq-white">
               {game?.deckMeta?.drawLeft ?? "-"}
@@ -255,77 +446,72 @@ export default function GamePage() {
         </div>
       </header>
 
-      <div className="flex-1 flex flex-col px-4 py-4 gap-4 overflow-hidden">
-        {/* ── 플레이어 스트립 ───────────────────────────────────── */}
-        <PlayerStrip players={players} game={game} myUid={uid} />
+      {/* ══════════════════════════════════════════════════════════ */}
+      {/* 데스크톱 레이아웃 (lg+): 3열 그리드                       */}
+      {/* ══════════════════════════════════════════════════════════ */}
+      <div className="hidden lg:grid flex-1 grid-cols-[300px_minmax(0,1fr)_360px] gap-6 p-6 overflow-hidden">
+        {/* 좌측: 플레이어 목록 */}
+        <aside className="overflow-y-auto">
+          <PlayerListPanel players={players} game={game} myUid={uid} />
+        </aside>
 
-        {/* ── 보드 플레이스홀더 (M4에서 구현) ─────────────────── */}
-        <section className="flex-1 bg-dq-charcoal border border-white/10 rounded-2xl flex items-center justify-center min-h-[200px]">
-          <div className="text-center space-y-2 p-4">
-            <p className="text-dq-white/40 text-sm">10×10 보드</p>
-            <p className="text-dq-white/25 text-xs">M4에서 구현 예정</p>
-            {game && (
-              <p className="text-dq-white/40 text-xs font-mono mt-2">
-                칩 점유: {Object.keys(game.chipsByCell).length}칸
-              </p>
-            )}
+        {/* 중앙: 게임 보드 */}
+        <section className="flex flex-col gap-3 overflow-hidden">
+          <p className="text-xs font-bold tracking-widest text-dq-white/50 uppercase text-center">
+            Game Board
+          </p>
+          <div className="flex-1 flex items-center justify-center overflow-hidden">
+            <div className="w-full max-h-full aspect-square">
+              <BoardGrid chipsByCell={game?.chipsByCell} />
+            </div>
           </div>
         </section>
 
-        {/* ── 내 손패 ──────────────────────────────────────────── */}
-        <section className="space-y-2">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xs font-bold tracking-widest text-dq-white/60 uppercase">
-              내 손패
-            </h2>
-            {me && (
-              <div className="flex items-center gap-1.5">
-                <TeamBadge teamId={me.teamId} />
-                <span className="text-xs text-dq-white/50">{me.nickname}</span>
-              </div>
-            )}
-          </div>
-
-          {hand ? (
-            <div className="flex gap-2 overflow-x-auto pb-2 snap-x snap-mandatory">
-              {hand.cardIds.map((cardId, idx) => {
-                const dead = isDeadCard(cardId, game?.chipsByCell ?? {});
-                return (
-                  <div key={`${cardId}-${idx}`} className="snap-start shrink-0">
-                    <CardTile
-                      cardId={cardId}
-                      selected={selectedCard === cardId}
-                      isMyTurn={isMyTurn}
-                      isDead={dead}
-                      onClick={() => {
-                        if (dead) return;
-                        setSelectedCard((prev) => (prev === cardId ? null : cardId));
-                      }}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="h-20 flex items-center justify-center">
-              <p className="text-dq-white/40 text-sm">손패 로딩 중…</p>
-            </div>
-          )}
-        </section>
+        {/* 우측: 덱 + 손패 + 버튼 */}
+        <aside className="flex flex-col gap-6 overflow-y-auto">
+          <DeckVisual drawLeft={game?.deckMeta?.drawLeft} />
+          <HandSection
+            hand={hand}
+            game={game}
+            isMyTurn={isMyTurn}
+            me={me}
+            selectedCard={selectedCard}
+            onSelectCard={handleSelectCard}
+            layout="desktop"
+          />
+          <PlaceCardButton isMyTurn={isMyTurn} selectedCard={selectedCard} />
+        </aside>
       </div>
 
-      {/* ── 하단 액션 바 (M4에서 활성화) ────────────────────────── */}
+      {/* ══════════════════════════════════════════════════════════ */}
+      {/* 모바일 레이아웃 (기본): 수직 스택                         */}
+      {/* ══════════════════════════════════════════════════════════ */}
+      <div className="flex-1 flex flex-col gap-3 px-4 pt-3 overflow-hidden lg:hidden">
+        <PlayerStrip players={players} game={game} myUid={uid} />
+
+        <section className="flex-1 flex items-center justify-center overflow-hidden min-h-0">
+          <div className="w-full aspect-square max-h-full">
+            <BoardGrid chipsByCell={game?.chipsByCell} />
+          </div>
+        </section>
+
+        <HandSection
+          hand={hand}
+          game={game}
+          isMyTurn={isMyTurn}
+          me={me}
+          selectedCard={selectedCard}
+          onSelectCard={handleSelectCard}
+          layout="mobile"
+        />
+      </div>
+
+      {/* 모바일 하단 고정 버튼 */}
       <div
-        className="px-4 py-3 bg-dq-charcoal border-t border-white/10"
+        className="shrink-0 px-4 py-3 bg-dq-charcoal border-t border-white/10 lg:hidden"
         style={{ paddingBottom: "calc(12px + env(safe-area-inset-bottom))" }}
       >
-        <button
-          type="button"
-          disabled={!isMyTurn || !selectedCard}
-          className="w-full min-h-[44px] rounded-xl font-bold text-sm bg-dq-red text-dq-white hover:bg-dq-redLight disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dq-redLight"
-        >
-          {isMyTurn ? (selectedCard ? "카드 놓기 (M4 구현 예정)" : "카드를 선택하세요") : "상대 턴 대기 중…"}
-        </button>
+        <PlaceCardButton isMyTurn={isMyTurn} selectedCard={selectedCard} />
       </div>
     </main>
   );
