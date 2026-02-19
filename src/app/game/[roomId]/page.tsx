@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useRef, useCallback, memo } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Image from "next/image";
 import { ensureAnonAuth } from "@/features/auth/ensureAnonAuth";
 import { subscribeToRoom } from "@/features/room/roomApi";
 import { subscribeToHand, submitTurnAction } from "@/features/game/gameApi";
@@ -30,7 +29,7 @@ function TeamBadge({ teamId }: { teamId?: string | null }) {
   const cls =
     teamId === "A"
       ? "bg-dq-red/20 text-dq-redLight border border-dq-red/30"
-      : "bg-blue-500/20 text-blue-300 border border-blue-500/30";
+      : "bg-dq-blue/20 text-dq-blueLight border border-dq-blue/30";
   return (
     <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${cls}`}>
       {teamId === "A" ? "레드" : "블루"}
@@ -48,13 +47,13 @@ const ChipOverlay = memo(function ChipOverlay({
 }) {
   const base =
     teamId === "A"
-      ? "bg-dq-red/80 border-dq-redLight"
-      : "bg-blue-500/80 border-blue-300";
+      ? "bg-dq-redDark/90 border-dq-red"
+      : "bg-dq-blueDark border-dq-blueLight";
   return (
     <div className="absolute inset-0 flex items-center justify-center">
       <div
         className={[
-          "rounded-full border-2 aspect-square w-[62%]",
+          "rounded-full border-2 aspect-square w-[52%]",
           base,
           isInSequence ? "shadow-lg ring-2 ring-white/40" : "",
         ].join(" ")}
@@ -120,6 +119,7 @@ const BoardCell = memo(function BoardCell({
         src={boardCardImageUrl(cardId)}
         alt={cardAltText(cardId)}
         loading={cellId < 30 ? "eager" : "lazy"}
+        decoding="async"
         className={["w-full h-full", shadowFilter].filter(Boolean).join(" ")}
         draggable={false}
       />
@@ -212,12 +212,14 @@ function CardTile({
       aria-label={cardAltText(cardId)}
       aria-pressed={selected}
     >
-      <Image
+      <img
         src={cardImageUrl(cardId)}
         alt={cardAltText(cardId)}
         width={56}
         height={80}
-        className="block"
+        loading="eager"
+        decoding="async"
+        className="block w-[56px] h-[80px] object-cover"
         draggable={false}
       />
       {isDead && (
@@ -276,7 +278,7 @@ function PlayerListPanel({
             p.teamId === "A"
               ? "border-dq-red"
               : p.teamId === "B"
-                ? "border-blue-500"
+                ? "border-dq-blue"
                 : "border-white/20";
           return (
             <div
@@ -525,7 +527,7 @@ function EndedOverlay({
         <div className="flex gap-3 text-sm font-bold">
           <span className="text-dq-redLight">레드 {game.scoreByTeam.A}시퀀스</span>
           <span className="text-dq-white/40">vs</span>
-          <span className="text-blue-300">블루 {game.scoreByTeam.B}시퀀스</span>
+          <span className="text-dq-blueLight">블루 {game.scoreByTeam.B}시퀀스</span>
         </div>
         <button
           type="button"
@@ -709,7 +711,7 @@ export default function GamePage() {
           </div>
           <div className="flex gap-3 text-xs">
             <span className="text-dq-redLight font-bold">A {game?.scoreByTeam?.A ?? 0}</span>
-            <span className="text-blue-300 font-bold">B {game?.scoreByTeam?.B ?? 0}</span>
+            <span className="text-dq-blueLight font-bold">B {game?.scoreByTeam?.B ?? 0}</span>
           </div>
         </div>
       </header>

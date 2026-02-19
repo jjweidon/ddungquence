@@ -25,9 +25,9 @@ const MAX_PARTICIPANTS = 4;
 function TeamChip({ teamId }: { teamId?: TeamId | null }) {
   const style =
     teamId === "A"
-      ? "bg-dq-red border-dq-red"
+      ? "bg-dq-redDark border-dq-redDark"
       : teamId === "B"
-        ? "bg-dq-blue border-dq-blue"
+        ? "bg-dq-blueDark border-dq-blueDark"
         : "bg-white/10 border-white/20";
   return (
     <span

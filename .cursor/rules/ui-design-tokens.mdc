@@ -18,7 +18,9 @@ alwaysApply: false
 - DQ Red(Primary): `#D61F2C`
 - DQ Red Dark: `#A0121C`
 - DQ Red Light: `#FF4D5A`
-- DQ Blue(팀2): `#2563EB`
+- DQ Blue(팀2): `#1E3A8A` (코발트-네이비)
+- DQ Blue Dark(칩): `#152A6B`
+- DQ Blue Light: `#6B9AE8`
 - DQ Green(팀3): `#16A34A`
 
 ## UI 토큰 매핑(권장)
@@ -58,7 +60,9 @@ export default {
           red: "#D61F2C",
           redDark: "#A0121C",
           redLight: "#FF4D5A",
-          blue: "#2563EB",
+          blue: "#1E3A8A",
+          blueDark: "#152A6B",
+          blueLight: "#6B9AE8",
           green: "#16A34A",
         },
       },
