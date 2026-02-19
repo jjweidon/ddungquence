@@ -201,7 +201,7 @@ type PrivateDealerDoc = {
 - **형식**: 카드 한 장을 유일하게 식별하는 문자열. **이미지 파일명(확장자 제외)과 동일**하게 두는 것을 권장한다.
   - 예: `spade_2_1`, `heart_a_2`, `heart_10_1`, `diamond_q_2`, `o_o_1`(코너 1) … `o_o_4`(코너 4)
   - 패턴: `{suit}_{rank}_{variant}` (suit: spade|heart|diamond|clover|o, rank: 2..10|j|q|k|a, variant: 1|2. 코너는 o_o_1..4)
-- **잭**: `clover_j_1`/`clover_j_2`, `diamond_j_1`/`diamond_j_2`, `heart_j_1`/`heart_j_2`, `spade_j_1`/`spade_j_2` 등. 2-eye / 1-eye 구분은 문양 기준 매핑 테이블로 처리(01 문서 참조).
+- **잭**: `clover_j_1`/`clover_j_2`, `diamond_j_1`/`diamond_j_2`, `heart_j_1`/`heart_j_2`, `spade_j_1`/`spade_j_2` 등. **j_2** = Two-eyed Jack, **j_1** = One-eyed Jack(01 문서 참조).
 
 ### 5.1 카드 이미지 경로
 - 카드 이미지는 **webp** 포맷을 사용하며, 경로는 다음 규칙으로 고정한다.

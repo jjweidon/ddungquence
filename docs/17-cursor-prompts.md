@@ -40,7 +40,7 @@
 ### 프롬프트
 - `src/domain`에 다음을 만들어줘:
   - `cards/deck.ts`: 104장 덱 생성, 셔플
-  - `rules/jacks.ts`: two-eye/one-eye 판정(클럽/다이아, 하트/스페이드)
+  - `rules/jacks.ts`: two-eye/one-eye 판정(카드 ID j_2/j_1 기준)
   - `rules/deadCard.ts`: 데드 카드 판정(변형: 사용 불가, 교체 없음)
   - `rules/sequenceDetect.ts`: chipsByCell 기반 시퀀스 탐지(가로/세로/대각, 변형: 코너도 점유)
 - 함수는 모두 pure function으로 작성하고, 입력/출력 타입을 명확히 해줘.

@@ -37,6 +37,43 @@ function TeamChip({ teamId }: { teamId?: TeamId | null }) {
   );
 }
 
+// ─── 클립보드 / 체크 아이콘 (복사 버튼용) ─────────────────────
+function ClipboardIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden
+    >
+      <rect width={8} height={4} x={8} y={2} rx={1} ry={1} />
+      <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+    </svg>
+  );
+}
+function CheckIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden
+    >
+      <path d="M20 6 9 17l-5-5" />
+    </svg>
+  );
+}
+
 // ─── RoomHeader: 방 코드 + 복사 + 연결 상태 ─────────────────────
 function RoomHeader({
   code,
@@ -45,6 +82,23 @@ function RoomHeader({
   code: string;
   onCopy: () => void;
 }) {
+  const [copied, setCopied] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleCopy = useCallback(() => {
+    onCopy();
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setCopied(true);
+    timerRef.current = setTimeout(() => {
+      setCopied(false);
+      timerRef.current = null;
+    }, 2000);
+  }, [onCopy]);
+
+  useEffect(() => () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+  }, []);
+
   return (
     <section className="bg-dq-charcoal border border-white/10 rounded-2xl p-4">
       <div className="flex items-center justify-between gap-3">
@@ -57,10 +111,17 @@ function RoomHeader({
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={onCopy}
-            className="px-3 py-1.5 rounded-xl text-sm font-medium bg-dq-black border border-white/10 text-dq-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dq-redLight"
+            onClick={handleCopy}
+            aria-label={copied ? "복사됨" : "방 코드 복사"}
+            className="p-2 rounded-xl bg-dq-black border border-white/10 text-dq-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dq-redLight transition-colors"
           >
-            복사
+            <span className="size-5 block">
+              {copied ? (
+                <CheckIcon className="size-5 text-dq-green" />
+              ) : (
+                <ClipboardIcon className="size-5" />
+              )}
+            </span>
           </button>
           <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-dq-green/20 text-dq-green border border-dq-green/30">
             연결됨

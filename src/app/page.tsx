@@ -60,7 +60,7 @@ function LoadingDots() {
 function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   const base = [
     "w-full px-4 py-2.5 rounded-xl text-sm font-medium",
-    "bg-dq-black border border-white/10 text-dq-white",
+    "bg-dq-charcoalDeep border border-white/25 text-dq-white",
     "placeholder:text-dq-white/50",
     "focus:outline-none focus-visible:ring-2 focus-visible:ring-dq-redLight focus-visible:ring-offset-2 focus-visible:ring-offset-dq-charcoal",
     "transition-colors duration-150",
@@ -110,7 +110,7 @@ function SecondaryButton({
       disabled={props.disabled || pending}
       className={[
         "w-full min-h-[44px] py-2.5 rounded-xl text-sm font-bold tracking-wide",
-        "bg-dq-black hover:bg-white/14 border border-white/10 text-dq-white",
+        "bg-dq-charcoalDeep hover:bg-white/14 border border-white/25 text-dq-white",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dq-redLight focus-visible:ring-offset-2 focus-visible:ring-offset-dq-charcoal",
         "disabled:opacity-50 disabled:cursor-not-allowed",
         "transition-colors duration-150",
@@ -156,9 +156,9 @@ function SpinnerIcon() {
 function Divider({ label }: { label: string }) {
   return (
     <div className="flex items-center gap-3">
-      <div className="flex-1 h-px bg-white/10" />
-      <span className="text-xs text-dq-white/50 font-medium">{label}</span>
-      <div className="flex-1 h-px bg-white/10" />
+      <div className="flex-1 h-px bg-white/25" />
+      <span className="text-xs text-dq-white font-medium">{label}</span>
+      <div className="flex-1 h-px bg-white/25" />
     </div>
   );
 }
@@ -228,7 +228,7 @@ export default function LandingPage() {
 
         <div className="dq-form-card w-full rounded-2xl p-6 flex flex-col gap-5">
           <form onSubmit={handleCreateRoom} className="flex flex-col gap-3">
-            <h2 className="text-xs font-bold tracking-widest text-dq-white/70 uppercase">
+            <h2 className="text-xs font-bold tracking-widest text-dq-white uppercase">
               새 방 만들기
             </h2>
             <TextInput
@@ -252,7 +252,7 @@ export default function LandingPage() {
           <Divider label="또는" />
 
           <form onSubmit={handleJoinRoom} className="flex flex-col gap-3">
-            <h2 className="text-xs font-bold tracking-widest text-dq-white/70 uppercase">
+            <h2 className="text-xs font-bold tracking-widest text-dq-white uppercase">
               방 참가
             </h2>
             <TextInput
@@ -291,7 +291,15 @@ export default function LandingPage() {
         </div>
 
         <p className="text-[11px] text-dq-white/30 text-center select-none">
-          v0.1.0 · 비공개 베타
+          v1.0.0 · ©{" "}
+          <a
+            href="https://github.com/jjweidon/ddungquence"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-dq-white/50 transition-colors"
+          >
+            jjweidon
+          </a>
         </p>
       </div>
     </main>

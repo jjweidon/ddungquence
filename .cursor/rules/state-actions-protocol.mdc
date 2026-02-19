@@ -35,13 +35,13 @@ export type GameAction =
   | {
       type: "TURN_PLAY_JACK_WILD";
       expectedVersion: number;
-      cardId: "JC" | "JD";   // Two-eyed
+      cardId: string;        // *_j_2 (Two-eyed)
       targetCellId: number;  // 어떤 빈칸
     }
   | {
       type: "TURN_PLAY_JACK_REMOVE";
       expectedVersion: number;
-      cardId: "JH" | "JS";   // One-eyed
+      cardId: string;        // *_j_1 (One-eyed)
       removeCellId: number;  // 상대 칩 제거
     };
 

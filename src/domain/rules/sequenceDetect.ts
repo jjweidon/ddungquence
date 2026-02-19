@@ -29,9 +29,16 @@ function overlapCount(a: number[], b: number[]): number {
   return b.filter((c) => setA.has(c)).length;
 }
 
+function isInBounds(row: number, col: number): boolean {
+  return row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE;
+}
+
 /**
  * 현재 보드 상태에서 모든 팀의 시퀀스 후보를 탐색한다.
  * 방향 4개(→ ↓ ↘ ↙)를 검사하며, 코너 칸도 일반 칸과 동일하게 취급한다.
+ *
+ * 6목 정책: 5칸 후보의 시작 직전 또는 끝 직후 칸에 동일 팀 칩이 있으면
+ * 해당 후보는 6개 이상 연속의 일부이므로 제외한다.
  */
 function findAllCandidates(chipsByCell: ChipsByCell): DetectedSequence[] {
   const candidates: DetectedSequence[] = [];
@@ -47,7 +54,7 @@ function findAllCandidates(chipsByCell: ChipsByCell): DetectedSequence[] {
           const r = row + dr * k;
           const c = col + dc * k;
 
-          if (r < 0 || r >= BOARD_SIZE || c < 0 || c >= BOARD_SIZE) {
+          if (!isInBounds(r, c)) {
             valid = false;
             break;
           }
@@ -71,7 +78,23 @@ function findAllCandidates(chipsByCell: ChipsByCell): DetectedSequence[] {
         }
 
         if (valid && cells.length === SEQUENCE_LEN && teamId !== undefined) {
-          candidates.push({ teamId, cells: [...cells].sort((a, b) => a - b) });
+          // 6목 체크: 시작 직전 칸에 같은 팀 칩이 있으면 6개 이상 연속 → 제외
+          const prevRow = row - dr;
+          const prevCol = col - dc;
+          const hasPrev =
+            isInBounds(prevRow, prevCol) &&
+            (chipsByCell[String(cellId(prevRow, prevCol))] as TeamId | undefined) === teamId;
+
+          // 6목 체크: 끝 직후 칸에 같은 팀 칩이 있으면 6개 이상 연속 → 제외
+          const nextRow = row + dr * SEQUENCE_LEN;
+          const nextCol = col + dc * SEQUENCE_LEN;
+          const hasNext =
+            isInBounds(nextRow, nextCol) &&
+            (chipsByCell[String(cellId(nextRow, nextCol))] as TeamId | undefined) === teamId;
+
+          if (!hasPrev && !hasNext) {
+            candidates.push({ teamId, cells: [...cells].sort((a, b) => a - b) });
+          }
         }
       }
     }

@@ -142,6 +142,99 @@ describe("detectNewSequences — 코너 칸 포함 시퀀스", () => {
   });
 });
 
+describe("detectNewSequences — 6목(6개 이상 연속) 정책", () => {
+  it("가로 6개 연속 → 시퀀스 없음(두 5칸 윈도우 모두 거부)", () => {
+    // row 0, col 0~5: 6개 연속
+    const chips = fillRow(0, [0, 1, 2, 3, 4, 5], "A");
+    const result = detectNewSequences(chips, []);
+    expect(result).toHaveLength(0);
+  });
+
+  it("가로 7개 연속 → 시퀀스 없음", () => {
+    const chips = fillRow(0, [0, 1, 2, 3, 4, 5, 6], "A");
+    const result = detectNewSequences(chips, []);
+    expect(result).toHaveLength(0);
+  });
+
+  it("가로 5개 연속(경계 없음) → 시퀀스 1개", () => {
+    const chips = fillRow(0, [2, 3, 4, 5, 6], "A");
+    const result = detectNewSequences(chips, []);
+    expect(result).toHaveLength(1);
+    expect(result[0].cells).toEqual([2, 3, 4, 5, 6]);
+  });
+
+  it("세로 6개 연속 → 시퀀스 없음", () => {
+    const chips: ChipsByCell = {};
+    for (let row = 0; row < 6; row++) {
+      chips[String(cell(row, 3))] = "B";
+    }
+    const result = detectNewSequences(chips, []);
+    expect(result).toHaveLength(0);
+  });
+
+  it("대각선(↘) 6개 연속 → 시퀀스 없음", () => {
+    const chips: ChipsByCell = {};
+    for (let i = 0; i < 6; i++) {
+      chips[String(cell(i, i))] = "A";
+    }
+    const result = detectNewSequences(chips, []);
+    expect(result).toHaveLength(0);
+  });
+
+  it("4개 연속 + 1칸 갭 + 1개 → 중간 배치로 6개 연속 → 시퀀스 없음", () => {
+    // col 0~3 칩 + col 5 칩, 이후 col 4에 칩 배치(6개 연속)
+    const chips = fillRow(1, [0, 1, 2, 3, 4, 5], "A");
+    const result = detectNewSequences(chips, []);
+    expect(result).toHaveLength(0);
+  });
+
+  it("6개 연속에서 한쪽 끝 제거(칩 없음) → 5개만 남아 시퀀스 탐지", () => {
+    // row 0, col 1~5: 5개 연속 (col 0은 비어 있음 — one-eyed jack으로 제거된 상황)
+    const chips = fillRow(0, [1, 2, 3, 4, 5], "A");
+    const result = detectNewSequences(chips, []);
+    expect(result).toHaveLength(1);
+    expect(result[0].cells).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it("이미 완성된 시퀀스에 1칸 추가로 6개 → 신규 시퀀스 없음", () => {
+    // 기존: row 0, col 0~4 완성됨. 새로 col 5 배치 → 6개 연속
+    const chips = fillRow(0, [0, 1, 2, 3, 4, 5], "A");
+    const completed: CompletedSequence[] = [
+      { teamId: "A", cells: [0, 1, 2, 3, 4], createdTurn: 1 },
+    ];
+    const result = detectNewSequences(chips, completed);
+    expect(result).toHaveLength(0);
+  });
+
+  it("6개 연속에서 왼쪽 끝 제거 → 오른쪽 5칸 시퀀스 탐지", () => {
+    // col 0은 비어있고, col 1~5 A팀 → [1,2,3,4,5] 시퀀스
+    const chips = fillRow(2, [1, 2, 3, 4, 5], "A");
+    const result = detectNewSequences(chips, []);
+    expect(result).toHaveLength(1);
+    expect(result[0].cells).toEqual([
+      cell(2, 1),
+      cell(2, 2),
+      cell(2, 3),
+      cell(2, 4),
+      cell(2, 5),
+    ]);
+  });
+
+  it("6개 연속에서 오른쪽 끝 제거 → 왼쪽 5칸 시퀀스 탐지", () => {
+    // col 0~4 A팀, col 5는 비어있음 → [0,1,2,3,4] 시퀀스
+    const chips = fillRow(2, [0, 1, 2, 3, 4], "A");
+    const result = detectNewSequences(chips, []);
+    expect(result).toHaveLength(1);
+    expect(result[0].cells).toEqual([
+      cell(2, 0),
+      cell(2, 1),
+      cell(2, 2),
+      cell(2, 3),
+      cell(2, 4),
+    ]);
+  });
+});
+
 describe("countSequencesByTeam", () => {
   it("팀별 시퀀스 수를 정확히 집계한다", () => {
     const completed: CompletedSequence[] = [

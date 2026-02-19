@@ -30,15 +30,45 @@ export default {
         sans: ["var(--font-noto-sans-kr)", "var(--font-inter)", "sans-serif"],
         mono: ["JetBrains Mono", "ui-monospace", "monospace"],
       },
-      animation: {
-        "dq-slide-slow": "dq-slide 60s linear infinite",
-        "dq-slide-slower": "dq-slide 80s linear infinite",
-      },
       keyframes: {
         "dq-slide": {
           "0%": { transform: "translateX(0)" },
           "100%": { transform: "translateX(-50%)" },
         },
+        "dq-sequence-pop-in": {
+          "0%": { opacity: "0", transform: "scale(0.6)" },
+          "15%": { opacity: "1", transform: "scale(1.08)" },
+          "30%": { transform: "scale(1)" },
+          "85%": { opacity: "1", transform: "scale(1)" },
+          "100%": { opacity: "0", transform: "scale(0.95)" },
+        },
+        // 일반 카드 칩 배치: 작게 시작 → 살짝 오버슈트 → 안착
+        "chip-place": {
+          "0%": { transform: "scale(0)", opacity: "0" },
+          "55%": { transform: "scale(1.22)", opacity: "1" },
+          "100%": { transform: "scale(1)", opacity: "1" },
+        },
+        // 2-eye Wild Jack 배치: 더 크게 튀어나왔다 → 스프링 정착
+        "chip-place-wild": {
+          "0%": { transform: "scale(0)", opacity: "0" },
+          "45%": { transform: "scale(1.55)", opacity: "1" },
+          "70%": { transform: "scale(0.88)" },
+          "100%": { transform: "scale(1)", opacity: "1" },
+        },
+        // 1-eye Jack 제거: 살짝 부풀었다 → 1초에 걸쳐 스르륵 사라짐
+        "chip-remove": {
+          "0%": { transform: "scale(1)", opacity: "1" },
+          "15%": { transform: "scale(1.12)", opacity: "0.9" },
+          "100%": { transform: "scale(0.1)", opacity: "0" },
+        },
+      },
+      animation: {
+        "dq-slide-slow": "dq-slide 60s linear infinite",
+        "dq-slide-slower": "dq-slide 80s linear infinite",
+        "dq-sequence-pop": "dq-sequence-pop-in 2s ease-out forwards",
+        "chip-place": "chip-place 0.42s cubic-bezier(0.34,1.56,0.64,1) forwards",
+        "chip-place-wild": "chip-place-wild 0.55s cubic-bezier(0.34,1.56,0.64,1) forwards",
+        "chip-remove": "chip-remove 1s ease-in forwards",
       },
     },
   },

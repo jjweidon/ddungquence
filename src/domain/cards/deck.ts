@@ -4,8 +4,9 @@ const SUITS: Suit[] = ["spade", "heart", "diamond", "clover"];
 const RANKS: Rank[] = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "j", "q", "k", "a"];
 
 /**
- * 104장 덱 생성 (표준 52장 × 2벌)
+ * 108장 덱 생성 (표준 52장 × 2벌 + 코너 카드 4장)
  * 카드 ID: "{suit}_{rank}_{variant}" — variant 1은 첫 번째 벌, 2는 두 번째 벌
+ * 코너: o_o_1, o_o_2, o_o_3, o_o_4 (보드 cellId 0, 9, 90, 99에 대응)
  */
 export function createDeck(): CardId[] {
   const cards: CardId[] = [];
@@ -16,7 +17,9 @@ export function createDeck(): CardId[] {
       }
     }
   }
-  return cards; // 4 suits × 13 ranks × 2 variants = 104
+  // 코너 카드 4장 (변형 규칙: 코너에 칩을 놓으려면 해당 코너 카드 필요)
+  cards.push("o_o_1", "o_o_2", "o_o_3", "o_o_4");
+  return cards; // 104 + 4 = 108
 }
 
 /**

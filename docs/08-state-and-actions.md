@@ -20,10 +20,10 @@ stateDiagram-v2
 ---
 
 ## 3) 카드/잭 판정 규칙(상수)
-- Two-eyed Jack(와일드 배치): **J♣, J♦**
-- One-eyed Jack(상대 제거): **J♥, J♠**
+- Two-eyed Jack(와일드 배치): 카드 ID가 `*_j_2` 형태(예: `clover_j_2`, `heart_j_2`)
+- One-eyed Jack(상대 제거): 카드 ID가 `*_j_1` 형태(예: `clover_j_1`, `heart_j_1`)
 
-> 출처: 대표적인 규칙 요약(예: Pagat) 및 다수 룰 설명에서 동일하게 사용된다.
+> 카드 ID 규격: `{suit}_{rank}_{variant}`. 잭 종류는 **variant 번호(j_1/j_2)**로 판별한다.
 
 ---
 
@@ -56,13 +56,13 @@ type GameAction =
   | {
       type: "TURN_PLAY_JACK_WILD";
       expectedVersion: number;
-      cardId: "JC" | "JD";
+      cardId: string;          // *_j_2 형태 (Two-eyed)
       targetCellId: number;    // 어떤 빈칸
     }
   | {
       type: "TURN_PLAY_JACK_REMOVE";
       expectedVersion: number;
-      cardId: "JH" | "JS";
+      cardId: string;          // *_j_1 형태 (One-eyed)
       removeCellId: number;    // 상대 칩 제거 대상
     }
   // 변형 규칙: 데드 카드는 교체하지 않고 손에 유지(사용 불가). TURN_EXCHANGE_DEAD_CARD 미지원.

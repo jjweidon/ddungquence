@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback, memo } from "react";
+import { useEffect, useLayoutEffect, useState, useRef, useCallback, memo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ensureAnonAuth } from "@/features/auth/ensureAnonAuth";
 import { subscribeToRoom } from "@/features/room/roomApi";
@@ -41,27 +41,64 @@ function TeamBadge({ teamId }: { teamId?: string | null }) {
 const ChipOverlay = memo(function ChipOverlay({
   teamId,
   isInSequence,
+  isRemovable,
+  chipAnimClass,
 }: {
   teamId: TeamId;
   isInSequence: boolean;
+  isRemovable?: boolean;
+  /** chip circle에 직접 적용되는 애니메이션 클래스 */
+  chipAnimClass?: string;
 }) {
   const base =
     teamId === "A"
       ? "bg-dq-redDark/90 border-dq-red"
       : "bg-dq-blueDark border-dq-blueLight";
+
+  const ringClass = isRemovable
+    ? "ring-2 ring-orange-400 ring-offset-[1px] ring-offset-black/80 shadow-[0_0_12px_4px_rgba(251,146,60,0.75)]"
+    : isInSequence
+      ? "shadow-lg ring-2 ring-white/40"
+      : "";
+
+  const hasOverlay = isRemovable || isInSequence;
   return (
-    <div className="absolute inset-0 flex items-center justify-center">
+    <div
+      className={[
+        "absolute inset-0 flex items-center justify-center",
+        isRemovable ? "animate-pulse" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
+      {/* 칩: 항상 원형 유지, 내부 콘텐츠 없음 */}
       <div
         className={[
-          "rounded-full border-2 aspect-square w-[52%]",
+          "relative w-[52%] aspect-square",
+          "rounded-full border-2 shrink-0",
           base,
-          isInSequence ? "shadow-lg ring-2 ring-white/40" : "",
-        ].join(" ")}
+          ringClass,
+          chipAnimClass,
+        ]
+          .filter(Boolean)
+          .join(" ")}
       >
-        {isInSequence && (
-          <span className="flex h-full items-center justify-center text-white/90 text-[8px] font-bold leading-none">
-            ★
-          </span>
+        {/* 별/✕는 별도 레이어로 칩 위에 오버레이 (칩 형태에 영향 없음) */}
+        {hasOverlay && (
+          <div
+            className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none"
+            aria-hidden
+          >
+            {isRemovable ? (
+              <span className="text-orange-200 text-[11px] font-black leading-none select-none">
+                ✕
+              </span>
+            ) : (
+              <span className="text-white/90 text-[8px] font-bold leading-none select-none">
+                ★
+              </span>
+            )}
+          </div>
         )}
       </div>
     </div>
@@ -77,6 +114,9 @@ const BoardCell = memo(function BoardCell({
   isPlayable,
   isRemovable,
   isDimmed,
+  jackType,
+  placedAnim,
+  removingTeamId,
   onClick,
 }: {
   cellId: number;
@@ -86,6 +126,11 @@ const BoardCell = memo(function BoardCell({
   isPlayable: boolean;
   isRemovable: boolean;
   isDimmed: boolean;
+  jackType: "wild" | "remove" | null;
+  /** 방금 배치된 칩의 종류 → 배치 애니메이션 선택 */
+  placedAnim?: "normal" | "wild";
+  /** 방금 제거된 칩 팀 → 유령 칩 제거 애니메이션 렌더링 */
+  removingTeamId?: TeamId;
   onClick: () => void;
 }) {
   const interactive = isPlayable || isRemovable;
@@ -93,10 +138,20 @@ const BoardCell = memo(function BoardCell({
   // drop-shadow는 img 실제 픽셀(카드 영역)을 따라가므로
   // 셀 크기와 카드 이미지 크기 차이에 무관하게 카드 윤곽에 딱 맞게 발광함
   const shadowFilter = isPlayable
-    ? "[filter:drop-shadow(0_0_4px_#FBBF24)_drop-shadow(0_0_2px_#F59E0B)]"
+    ? jackType === "wild"
+      ? // 2-eye wild: 보라빛 마법 글로우로 일반 배치와 구분
+        "[filter:drop-shadow(0_0_5px_#A78BFA)_drop-shadow(0_0_3px_#7C3AED)]"
+      : "[filter:drop-shadow(0_0_4px_#FBBF24)_drop-shadow(0_0_2px_#F59E0B)]"
     : isRemovable
-      ? "[filter:drop-shadow(0_0_4px_#fb923c)_drop-shadow(0_0_2px_#ea580c)]"
+      ? "[filter:drop-shadow(0_0_6px_#fb923c)_drop-shadow(0_0_3px_#ea580c)]"
       : "";
+
+  const chipAnimClass =
+    placedAnim === "wild"
+      ? "animate-chip-place-wild"
+      : placedAnim === "normal"
+        ? "animate-chip-place"
+        : undefined;
 
   return (
     <button
@@ -123,11 +178,39 @@ const BoardCell = memo(function BoardCell({
         className={["w-full h-full", shadowFilter].filter(Boolean).join(" ")}
         draggable={false}
       />
-      {/* 칩 오버레이 */}
-      {chip && <ChipOverlay teamId={chip} isInSequence={isInSequence} />}
+      {/* 제거 중인 유령 칩 (1-eye jack 제거 애니메이션) */}
+      {removingTeamId && (
+        <ChipOverlay
+          teamId={removingTeamId}
+          isInSequence={false}
+          chipAnimClass="animate-chip-remove will-change-[transform,opacity] pointer-events-none"
+        />
+      )}
+      {/* 일반 칩 오버레이 */}
+      {chip && (
+        <ChipOverlay
+          teamId={chip}
+          isInSequence={isInSequence}
+          isRemovable={isRemovable}
+          chipAnimClass={chipAnimClass}
+        />
+      )}
+      {/* 2-eye wild 배치 가능 빈 칸 표시 */}
+      {jackType === "wild" && isPlayable && !chip && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <span className="text-violet-300/70 text-[10px] font-black leading-none select-none animate-pulse">
+            ✦
+          </span>
+        </div>
+      )}
     </button>
   );
 });
+
+/** 칩 애니메이션 상태 */
+type CellAnim =
+  | { type: "placed"; isJackWild: boolean }
+  | { type: "removing"; teamId: TeamId };
 
 // ─── 게임 보드 ───────────────────────────────────────────────────
 function GameBoard({
@@ -145,6 +228,58 @@ function GameBoard({
   const completedSequences = game?.completedSequences ?? [];
   const sequenceCells = new Set(completedSequences.flatMap((s) => s.cells));
 
+  // ── 칩 변화 감지 → 배치/제거 애니메이션 ──────────────────────────
+  const prevChipsRef = useRef<Record<string, TeamId> | null>(null);
+  const [cellAnims, setCellAnims] = useState<Map<number, CellAnim>>(new Map());
+  const animTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // useLayoutEffect: paint 전에 cellAnims 설정 → 칩 제거 시 유령 칩이 한 프레임 누락되지 않음
+  useLayoutEffect(() => {
+    // 첫 렌더(초기 로드): 기존 칩은 애니메이션 없이 그냥 표시
+    if (prevChipsRef.current === null) {
+      prevChipsRef.current = chipsByCell;
+      return;
+    }
+
+    const prev = prevChipsRef.current;
+    const curr = chipsByCell;
+    const newAnims = new Map<number, CellAnim>();
+
+    // 제거된 칩 감지
+    for (const [key, teamId] of Object.entries(prev)) {
+      if (!(key in curr)) {
+        newAnims.set(Number(key), { type: "removing", teamId: teamId as TeamId });
+      }
+    }
+
+    // 새로 배치된 칩 감지
+    const isJackWild = game?.lastAction?.type === "TURN_PLAY_JACK_WILD";
+    for (const key of Object.keys(curr)) {
+      if (!(key in prev)) {
+        newAnims.set(Number(key), { type: "placed", isJackWild });
+      }
+    }
+
+    prevChipsRef.current = curr;
+
+    if (newAnims.size > 0) {
+      setCellAnims((prev) => {
+        const merged = new Map(prev);
+        for (const [k, v] of newAnims) merged.set(k, v);
+        return merged;
+      });
+      if (animTimerRef.current) clearTimeout(animTimerRef.current);
+      // chip-remove 1초 + 여유 100ms 후 정리 (턴 전환 후에도 애니메이션 완료 보장)
+      animTimerRef.current = setTimeout(() => setCellAnims(new Map()), 1100);
+    }
+  }, [chipsByCell]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    return () => {
+      if (animTimerRef.current) clearTimeout(animTimerRef.current);
+    };
+  }, []);
+
   const highlight =
     selectedCard && myTeamId
       ? getHighlightForCard(
@@ -156,6 +291,14 @@ function GameBoard({
         )
       : null;
 
+  const jackType = selectedCard
+    ? isTwoEyedJack(selectedCard)
+      ? "wild"
+      : isOneEyedJack(selectedCard)
+        ? "remove"
+        : null
+    : null;
+
   return (
     <div className="w-full h-full grid grid-cols-10 grid-rows-10 gap-[3px] p-[3px] bg-dq-charcoal rounded-xl">
       {BOARD_LAYOUT.map((cardId, idx) => {
@@ -163,6 +306,17 @@ function GameBoard({
         const isRemovable = highlight?.removable.has(idx) ?? false;
         // 카드가 선택됐고 이 셀이 활성 대상이 아니면 어둡게
         const isDimmed = !!highlight && !isPlayable && !isRemovable;
+
+        const anim = cellAnims.get(idx);
+        const placedAnim =
+          anim?.type === "placed"
+            ? anim.isJackWild
+              ? "wild"
+              : "normal"
+            : undefined;
+        const removingTeamId =
+          anim?.type === "removing" ? anim.teamId : undefined;
+
         return (
           <BoardCell
             key={idx}
@@ -173,6 +327,9 @@ function GameBoard({
             isPlayable={isPlayable}
             isRemovable={isRemovable}
             isDimmed={isDimmed}
+            jackType={jackType}
+            placedAnim={placedAnim}
+            removingTeamId={removingTeamId}
             onClick={() => onCellClick(idx)}
           />
         );
@@ -253,6 +410,27 @@ function DeckVisual({ drawLeft }: { drawLeft?: number }) {
   );
 }
 
+// ─── 마지막 사용 카드 썸네일 (플레이어 목록용) ─────────────────────
+function LastCardThumb({
+  cardId,
+  size = "md",
+}: {
+  cardId: string;
+  size?: "sm" | "md";
+}) {
+  const sizeClass = size === "sm" ? "w-6 h-[34px]" : "w-9 h-12";
+  return (
+    <img
+      src={cardImageUrl(cardId)}
+      alt={cardAltText(cardId)}
+      className={`${sizeClass} shrink-0 rounded object-cover border border-white/20`}
+      loading="lazy"
+      decoding="async"
+      draggable={false}
+    />
+  );
+}
+
 // ─── 플레이어 목록 패널 (데스크톱) ───────────────────────────────
 function PlayerListPanel({
   players,
@@ -273,6 +451,10 @@ function PlayerListPanel({
         {participants.map((p) => {
           const isCurrentTurn = game?.currentUid === p.uid;
           const isMe = p.uid === myUid;
+          const lastCardId =
+            p.seat !== undefined && game?.discardTopBySeat
+              ? game.discardTopBySeat[String(p.seat)] ?? null
+              : null;
           const teamBorder =
             p.teamId === "A"
               ? "border-dq-red"
@@ -311,6 +493,9 @@ function PlayerListPanel({
                 </div>
                 <p className="text-sm text-dq-white/90 truncate mt-0.5">{p.nickname}</p>
               </div>
+              {lastCardId && (
+                <LastCardThumb cardId={lastCardId} size="md" />
+              )}
             </div>
           );
         })}
@@ -335,6 +520,10 @@ function PlayerStrip({
       {participants.map((p) => {
         const isCurrentTurn = game?.currentUid === p.uid;
         const isMe = p.uid === myUid;
+        const lastCardId =
+          p.seat !== undefined && game?.discardTopBySeat
+            ? game.discardTopBySeat[String(p.seat)] ?? null
+            : null;
         return (
           <div
             key={p.uid}
@@ -345,22 +534,18 @@ function PlayerStrip({
                 : "bg-dq-black border-white/10",
             ].join(" ")}
           >
-            <div className="flex gap-1 flex-wrap justify-center">
-              {isMe && (
-                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-white/15 text-dq-white border border-white/20">
-                  ME
-                </span>
-              )}
-              {isCurrentTurn && (
-                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-400/20 text-amber-400 border border-amber-400/30">
-                  TURN
-                </span>
-              )}
-            </div>
             <TeamBadge teamId={p.teamId} />
-            <span className="text-xs text-dq-white/80 truncate w-full text-center">
+            <span
+              className={[
+                "text-xs truncate w-full text-center px-1.5 py-0.5 rounded",
+                isMe ? "bg-white/15 font-bold text-dq-white" : "text-dq-white/80",
+              ].join(" ")}
+            >
               {p.nickname}
             </span>
+            {lastCardId && (
+              <LastCardThumb cardId={lastCardId} size="sm" />
+            )}
           </div>
         );
       })}
@@ -471,7 +656,7 @@ function ActionBar({
   if (!selectedCard) {
     return (
       <div className="w-full min-h-[48px] rounded-xl bg-amber-400/15 border-2 border-amber-400/50 flex items-center justify-center ring-1 ring-amber-400/30">
-        <span className="text-amber-400 font-bold text-sm">손패에서 카드를 선택하세요</span>
+        <span className="text-amber-400 font-bold text-sm">카드를 선택하세요</span>
       </div>
     );
   }
@@ -489,7 +674,28 @@ function ActionBar({
   );
 }
 
-// ─── 승리/종료 오버레이 ───────────────────────────────────────────
+// ─── 시퀀스 완성 팝업 (잠시 표시 후 사라짐) ─────────────────────────
+function SequenceCompletePopup({ teamId }: { teamId: TeamId }) {
+  const teamLabel = teamId === "A" ? "레드 팀" : "블루 팀";
+  const borderClass =
+    teamId === "A" ? "border-dq-redLight" : "border-dq-blueLight";
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none">
+      <div
+        className={`animate-dq-sequence-pop mx-4 max-w-sm w-full rounded-2xl p-8 flex flex-col items-center gap-4 shadow-2xl border-2 bg-dq-charcoal ${borderClass}`}
+      >
+        <p className="text-6xl animate-pulse">★</p>
+        <p className="text-2xl font-bold text-dq-white drop-shadow-lg">
+          {teamLabel} 시퀀스 완성!
+        </p>
+        <p className="text-dq-white/80 text-sm">5개 연속 달성</p>
+      </div>
+    </div>
+  );
+}
+
+// ─── 승리/종료 오버레이 (승리/패배 명확 표시) ───────────────────────
 function EndedOverlay({
   game,
   myTeamId,
@@ -507,11 +713,26 @@ function EndedOverlay({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-      <div className="bg-dq-charcoal border border-white/20 rounded-2xl p-8 flex flex-col items-center gap-6 mx-4 max-w-sm w-full">
-        <p className="text-5xl">{isWinner ? "🎉" : "😔"}</p>
+      <div
+        className={[
+          "rounded-2xl p-8 flex flex-col items-center gap-6 mx-4 max-w-sm w-full border-2",
+          isWinner
+            ? "bg-dq-charcoal border-dq-green shadow-[0_0_40px_rgba(22,163,74,0.25)]"
+            : "bg-dq-charcoal border-white/20",
+        ].join(" ")}
+      >
+        <p className="text-6xl">{isWinner ? "🎉" : "😭"}</p>
         <div className="text-center">
+          <p
+            className={[
+              "text-3xl font-black tracking-tight mb-2",
+              isWinner ? "text-dq-green" : "text-dq-white/70",
+            ].join(" ")}
+          >
+            {isWinner ? "승리!" : "패배ㅠ"}
+          </p>
           <p className="text-dq-white/60 text-sm mb-1">게임 종료</p>
-          <p className="text-2xl font-bold text-dq-white">{teamLabel} 승리!</p>
+          <p className="text-xl font-bold text-dq-white">{teamLabel} 승리!</p>
           {isWinner && (
             <p className="text-dq-redLight font-bold mt-1">축하합니다!</p>
           )}
@@ -551,6 +772,17 @@ export default function GamePage() {
 
   const unsubRoomRef = useRef<(() => void) | null>(null);
   const unsubHandRef = useRef<(() => void) | null>(null);
+  const prevSeqCountRef = useRef<number>(0);
+  const prevPhaseRef = useRef<string>("setup");
+  const hasInitializedSeqRef = useRef(false);
+
+  const [sequencePopup, setSequencePopup] = useState<TeamId | null>(null);
+  const [showResultOverlay, setShowResultOverlay] = useState(false);
+
+  // roomId 변경 시 시퀀스 팝업 초기화 플래그 리셋 (다른 방 진입 시 새 게임으로 처리)
+  useEffect(() => {
+    hasInitializedSeqRef.current = false;
+  }, [roomId]);
 
   const loadPlayers = useCallback(async (rid: string) => {
     const db = getFirestoreDb();
@@ -598,6 +830,54 @@ export default function GamePage() {
   const game = room?.game;
   const isMyTurn = !!uid && game?.currentUid === uid;
   const me = players.find((p) => p.uid === uid);
+
+  // 시퀀스 완성 팝업 + 결과창 타이밍 (마지막 칩 → 시퀀스 팝업 → 1초 후 결과창)
+  useEffect(() => {
+    if (!game) return;
+
+    const seqCount = game.completedSequences?.length ?? 0;
+    const phase = game.phase;
+
+    // 초기 로드(새로고침 등): ref만 동기화하고 팝업은 표시하지 않음
+    if (!hasInitializedSeqRef.current) {
+      hasInitializedSeqRef.current = true;
+      prevSeqCountRef.current = seqCount;
+      prevPhaseRef.current = phase;
+      if (phase === "ended") setShowResultOverlay(true);
+      return;
+    }
+
+    const wasPlaying = prevPhaseRef.current === "playing";
+    const seqJustIncreased = seqCount > prevSeqCountRef.current;
+
+    prevSeqCountRef.current = seqCount;
+    prevPhaseRef.current = phase;
+
+    if (phase === "ended") {
+      if (seqJustIncreased) {
+        // 방금 시퀀스 완성으로 게임 종료 → 시퀀스 팝업 → 1초 후 결과창
+        const lastSeq = game.completedSequences[seqCount - 1];
+        if (lastSeq) setSequencePopup(lastSeq.teamId);
+        const t = setTimeout(() => {
+          setShowResultOverlay(true);
+          setSequencePopup(null);
+        }, 1000);
+        return () => clearTimeout(t);
+      }
+      if (!wasPlaying) {
+        // 페이지 로드 시 이미 종료된 게임 → 결과창 즉시 표시
+        setShowResultOverlay(true);
+      }
+    } else if (phase === "playing" && seqJustIncreased) {
+      // 1번째 시퀀스 완성 (게임 계속) → 시퀀스 팝업 2초 후 사라짐
+      const lastSeq = game.completedSequences[seqCount - 1];
+      if (lastSeq) setSequencePopup(lastSeq.teamId);
+      const t = setTimeout(() => setSequencePopup(null), 2000);
+      return () => clearTimeout(t);
+    } else if (phase === "playing" || phase === "setup") {
+      setShowResultOverlay(false);
+    }
+  }, [game]);
 
   const participants = players
     .filter((p) => p.role === "participant")
@@ -672,8 +952,11 @@ export default function GamePage() {
 
   return (
     <main className="h-dvh overflow-visible bg-dq-charcoalDeep text-dq-white flex flex-col">
-      {/* 승리 오버레이 */}
-      {game?.phase === "ended" && game.winner && (
+      {/* 시퀀스 완성 팝업 (5개 칩 라인 달성 시) */}
+      {sequencePopup && <SequenceCompletePopup teamId={sequencePopup} />}
+
+      {/* 승리/패배 결과창 (시퀀스 팝업 1초 후 표시) */}
+      {game?.phase === "ended" && game.winner && showResultOverlay && (
         <EndedOverlay
           game={game}
           myTeamId={me?.teamId}
