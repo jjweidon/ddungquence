@@ -247,6 +247,13 @@ export async function submitTurnAction(
     const oneEyeLockedCell =
       action.type === "TURN_PLAY_JACK_REMOVE" ? action.removeCellId : null;
 
+    // deckMeta: 드로우 1장 시 drawLeft 감소 (Phase 2에서 실제 덱 업데이트)
+    const currentDrawLeft = game.deckMeta?.drawLeft ?? 0;
+    const newDeckMeta = {
+      drawLeft: Math.max(0, currentDrawLeft - 1),
+      reshuffles: game.deckMeta?.reshuffles ?? 0,
+    };
+
     // lastAction은 dot-notation으로 따로 기록 (serverTimestamp 사용)
     const gameUpdate = {
       "game.version": game.version + 1,
@@ -258,7 +265,7 @@ export async function submitTurnAction(
       "game.completedSequences": allSeqs,
       "game.discardTopBySeat": newDiscardTopBySeat,
       "game.scoreByTeam": scoreByTeam,
-      "game.deckMeta": game.deckMeta,
+      "game.deckMeta": newDeckMeta,
       "game.oneEyeLockedCell": oneEyeLockedCell ?? null,
       "game.lastAction": { uid, type: action.type, at: serverTimestamp() },
       ...(winnerTeam

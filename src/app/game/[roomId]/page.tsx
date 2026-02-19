@@ -201,11 +201,10 @@ function CardTile({
       onClick={onClick}
       disabled={!isMyTurn || isDead}
       className={[
-        "relative shrink-0 rounded-lg overflow-hidden select-none",
-        "border-2 transition-all duration-100",
+        "relative w-full rounded-lg overflow-hidden select-none transition-all duration-100",
         selected
-          ? "border-amber-400 ring-2 ring-amber-400 scale-105"
-          : "border-white/20 hover:border-white/50",
+          ? "border border-amber-400 ring-1 ring-amber-400 scale-105 z-10"
+          : "border border-white/20 hover:border-white/50",
         isMyTurn && !isDead ? "cursor-pointer active:scale-95" : "cursor-default",
         isDead ? "opacity-35 grayscale" : "",
       ].join(" ")}
@@ -219,7 +218,7 @@ function CardTile({
         height={80}
         loading="eager"
         decoding="async"
-        className="block w-[56px] h-[80px] object-cover"
+        className="block w-full h-auto object-cover"
         draggable={false}
       />
       {isDead && (
@@ -332,7 +331,7 @@ function PlayerStrip({
 }) {
   const participants = sortParticipantsRedBlue(players);
   return (
-    <div className="flex gap-2 overflow-x-auto pb-1">
+    <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${participants.length}, 1fr)` }}>
       {participants.map((p) => {
         const isCurrentTurn = game?.currentUid === p.uid;
         const isMe = p.uid === myUid;
@@ -340,7 +339,7 @@ function PlayerStrip({
           <div
             key={p.uid}
             className={[
-              "flex flex-col items-center gap-1 p-2 rounded-xl border min-w-[72px] shrink-0",
+              "flex flex-col items-center gap-1 p-2 rounded-xl border min-w-0",
               isCurrentTurn
                 ? "bg-dq-black border-amber-400 ring-1 ring-amber-400"
                 : "bg-dq-black border-white/10",
@@ -359,7 +358,7 @@ function PlayerStrip({
               )}
             </div>
             <TeamBadge teamId={p.teamId} />
-            <span className="text-xs text-dq-white/80 truncate max-w-[64px] text-center">
+            <span className="text-xs text-dq-white/80 truncate w-full text-center">
               {p.nickname}
             </span>
           </div>
@@ -390,10 +389,10 @@ function HandSection({
   const gridClass =
     layout === "desktop"
       ? "grid grid-cols-3 gap-2"
-      : "flex gap-2 overflow-x-auto pb-2 snap-x snap-mandatory";
+      : "grid grid-cols-6 gap-1";
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className={`flex flex-col gap-2 ${layout === "desktop" ? "px-2" : ""}`}>
       <div className="flex items-center justify-between">
         <h2 className="text-xs font-bold tracking-widest text-dq-white/50 uppercase">
           My Card
@@ -406,27 +405,20 @@ function HandSection({
         )}
       </div>
       {hand ? (
-        <div className={gridClass}>
-          {hand.cardIds.map((cardId, idx) => {
-            const dead = isDeadCard(cardId, game?.chipsByCell ?? {});
-            return (
-              <div
-                key={`${cardId}-${idx}`}
-                className={layout === "mobile" ? "snap-start shrink-0" : ""}
-              >
-                <CardTile
-                  cardId={cardId}
-                  selected={selectedCard === cardId}
-                  isMyTurn={isMyTurn}
-                  isDead={dead}
-                  onClick={() => {
-                    if (dead) return;
-                    onSelectCard(cardId);
-                  }}
-                />
-              </div>
-            );
-          })}
+        <div className={`${gridClass} overflow-visible`}>
+          {hand.cardIds.map((cardId, idx) => (
+            <CardTile
+              key={`${cardId}-${idx}`}
+              cardId={cardId}
+              selected={selectedCard === cardId}
+              isMyTurn={isMyTurn}
+              isDead={isDeadCard(cardId, game?.chipsByCell ?? {})}
+              onClick={() => {
+                if (isDeadCard(cardId, game?.chipsByCell ?? {})) return;
+                onSelectCard(cardId);
+              }}
+            />
+          ))}
         </div>
       ) : (
         <div className="h-20 flex items-center justify-center">
@@ -478,8 +470,8 @@ function ActionBar({
   }
   if (!selectedCard) {
     return (
-      <div className="w-full min-h-[48px] rounded-xl bg-dq-black border border-white/10 flex items-center justify-center">
-        <span className="text-dq-white/60 text-sm">손패에서 카드를 선택하세요</span>
+      <div className="w-full min-h-[48px] rounded-xl bg-amber-400/15 border-2 border-amber-400/50 flex items-center justify-center ring-1 ring-amber-400/30">
+        <span className="text-amber-400 font-bold text-sm">손패에서 카드를 선택하세요</span>
       </div>
     );
   }
@@ -679,7 +671,7 @@ export default function GamePage() {
   }
 
   return (
-    <main className="h-dvh overflow-hidden bg-dq-charcoalDeep text-dq-white flex flex-col">
+    <main className="h-dvh overflow-visible bg-dq-charcoalDeep text-dq-white flex flex-col">
       {/* 승리 오버레이 */}
       {game?.phase === "ended" && game.winner && (
         <EndedOverlay
@@ -719,7 +711,7 @@ export default function GamePage() {
       {/* ══════════════════════════════════════════════════════════ */}
       {/* 데스크톱 레이아웃 (lg+): 3열 그리드                       */}
       {/* ══════════════════════════════════════════════════════════ */}
-      <div className="hidden lg:grid flex-1 grid-cols-[300px_minmax(0,1fr)_360px] gap-6 p-6 overflow-hidden">
+      <div className="hidden lg:grid flex-1 grid-cols-[300px_minmax(0,1fr)_360px] gap-6 p-6 overflow-visible min-h-0">
         {/* 좌측: 플레이어 목록 */}
         <aside className="overflow-y-auto">
           <PlayerListPanel players={players} game={game} myUid={uid} />
@@ -742,8 +734,8 @@ export default function GamePage() {
           </div>
         </section>
 
-        {/* 우측: 덱 + 손패 + 액션바 */}
-        <aside className="flex flex-col gap-6 overflow-y-auto">
+        {/* 우측: 덱 + 손패 + 액션바 (overflow-visible로 손패 카드 확대 시 잘림 방지) */}
+        <aside className="flex flex-col gap-6 overflow-visible">
           <DeckVisual drawLeft={game?.deckMeta?.drawLeft} />
           <HandSection
             hand={hand}
@@ -767,7 +759,7 @@ export default function GamePage() {
       {/* ══════════════════════════════════════════════════════════ */}
       {/* 모바일 레이아웃 (기본): 수직 스택                         */}
       {/* ══════════════════════════════════════════════════════════ */}
-      <div className="flex-1 flex flex-col gap-2 px-4 pt-2 overflow-hidden lg:hidden">
+      <div className="flex-1 flex flex-col gap-2 px-4 pt-2 overflow-visible lg:hidden min-h-0">
         {/* shrink-0: 플레이어 스트립은 고정 높이 */}
         <div className="shrink-0">
           <PlayerStrip players={players} game={game} myUid={uid} />
@@ -785,8 +777,8 @@ export default function GamePage() {
           </div>
         </section>
 
-        {/* shrink-0: 손패는 고정 높이 */}
-        <div className="shrink-0">
+        {/* shrink-0: 손패는 고정 높이, overflow-visible로 선택 시 카드 확대가 잘리지 않도록 */}
+        <div className="shrink-0 overflow-visible">
           <HandSection
             hand={hand}
             game={game}

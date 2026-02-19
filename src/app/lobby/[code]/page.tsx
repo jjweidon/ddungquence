@@ -206,7 +206,8 @@ function ActionBar({
                   key={teamId}
                   type="button"
                   onClick={() => onTeamSelect(teamId)}
-                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border min-h-[44px] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dq-redLight ${
+                  disabled={me?.ready}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border min-h-[44px] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dq-redLight disabled:opacity-40 disabled:cursor-not-allowed ${
                     me?.teamId === teamId
                       ? "bg-dq-black border-white/10 ring-2 ring-dq-redLight"
                       : "bg-dq-black border-white/10 hover:bg-white/5"
@@ -223,7 +224,11 @@ function ActionBar({
               type="button"
               onClick={onReadyToggle}
               disabled={readyPending}
-              className="w-full min-h-[48px] py-2.5 rounded-xl text-sm font-bold bg-dq-red text-dq-white hover:bg-dq-redLight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dq-redLight disabled:opacity-50"
+              className={`w-full min-h-[48px] py-2.5 rounded-xl text-sm font-bold focus-visible:outline-none focus-visible:ring-2 disabled:opacity-50 transition-colors ${
+                me?.ready
+                  ? "bg-white/10 text-dq-white border border-white/20 hover:bg-white/15 focus-visible:ring-white/40"
+                  : "bg-[#39FF14] text-[#0B0B0F] hover:bg-[#57FF33] focus-visible:ring-[#39FF14]"
+              }`}
             >
               {me?.ready ? "준비 취소" : "준비"}
             </button>
@@ -523,47 +528,28 @@ export default function LobbyPage() {
 
   return (
     <main className="min-h-dvh bg-dq-charcoalDeep text-dq-white pb-[calc(80px+env(safe-area-inset-bottom))]">
-      <div className="max-w-lg mx-auto px-4 py-6 lg:max-w-4xl lg:grid lg:grid-cols-[420px_1fr] lg:gap-6 lg:pb-6">
+      <div className="max-w-lg mx-auto px-4 py-6 space-y-4">
         {error && (
-          <div className="mb-4 p-3 rounded-xl bg-dq-redDark/20 border border-dq-red/30 text-dq-redLight text-sm">
+          <div className="p-3 rounded-xl bg-dq-redDark/20 border border-dq-red/30 text-dq-redLight text-sm">
             {error}
           </div>
         )}
 
-        <div className="space-y-4 lg:space-y-6">
-          <RoomHeader code={code} onCopy={handleCopyCode} />
-          <PlayerSection
-            players={players}
-            hostUid={hostUid}
-            myUid={uid}
-          />
-          <SpectatorSection players={players} myUid={uid} />
-        </div>
+        <RoomHeader code={code} onCopy={handleCopyCode} />
+        <PlayerSection
+          players={players}
+          hostUid={hostUid}
+          myUid={uid}
+        />
+        <SpectatorSection players={players} myUid={uid} />
 
-        {/* 데스크톱: 우측에 나가기 등 */}
-        <div className="hidden lg:block lg:space-y-4">
-          <div className="bg-dq-charcoal border border-white/10 rounded-2xl p-4">
-            <button
-              type="button"
-              onClick={handleLeaveRoom}
-              disabled={leavePending}
-              className="w-full min-h-[44px] py-2 rounded-xl border border-white/10 bg-dq-black text-dq-white hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-dq-redLight disabled:opacity-50"
-            >
-              {leavePending ? "나가는 중…" : "나가기"}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* 모바일: 나가기 링크(상단 또는 액션바 위) */}
-      <div className="fixed top-4 right-4 z-10 lg:hidden">
         <button
           type="button"
           onClick={handleLeaveRoom}
           disabled={leavePending}
-          className="px-3 py-1.5 rounded-xl text-sm font-medium text-dq-white/80 hover:text-dq-white hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-dq-redLight disabled:opacity-50"
+          className="w-full min-h-[44px] py-2 rounded-xl border border-white/10 bg-dq-black text-dq-white hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-dq-redLight disabled:opacity-50"
         >
-          나가기
+          {leavePending ? "나가는 중…" : "나가기"}
         </button>
       </div>
 
