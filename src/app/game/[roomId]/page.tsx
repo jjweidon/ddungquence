@@ -621,13 +621,22 @@ function ActionBar({
   txPending,
   txError,
   onClearError,
+  gameEnded,
 }: {
   isMyTurn: boolean;
   selectedCard: string | null;
   txPending: boolean;
   txError: string | null;
   onClearError: () => void;
+  gameEnded?: boolean;
 }) {
+  if (gameEnded) {
+    return (
+      <div className="w-full min-h-[48px] rounded-xl bg-dq-red/15 border-2 border-dq-red/50 flex items-center justify-center ring-1 ring-dq-red/30">
+        <span className="text-dq-redLight font-bold text-sm">게임이 종료되었습니다</span>
+      </div>
+    );
+  }
   if (txError) {
     return (
       <button
@@ -700,10 +709,12 @@ function EndedOverlay({
   game,
   myTeamId,
   onGoHome,
+  onClose,
 }: {
   game: PublicGameState;
   myTeamId: TeamId | undefined;
   onGoHome: () => void;
+  onClose: () => void;
 }) {
   const winner = game.winner;
   if (!winner) return null;
@@ -742,13 +753,22 @@ function EndedOverlay({
           <span className="text-dq-white/40">vs</span>
           <span className="text-dq-blueLight">블루 {game.scoreByTeam.B}시퀀스</span>
         </div>
-        <button
-          type="button"
-          onClick={onGoHome}
-          className="w-full h-12 rounded-xl bg-dq-red text-dq-white font-bold hover:bg-dq-redLight transition-colors"
-        >
-          홈으로
-        </button>
+        <div className="w-full flex flex-col gap-2">
+          <button
+            type="button"
+            onClick={onGoHome}
+            className="w-full h-12 rounded-xl bg-dq-red text-dq-white font-bold hover:bg-dq-redLight transition-colors"
+          >
+            홈으로
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full h-12 rounded-xl bg-white/10 text-dq-white border border-white/20 font-bold hover:bg-white/20 transition-colors"
+          >
+            닫기
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -855,13 +875,10 @@ export default function GamePage() {
 
     if (phase === "ended") {
       if (seqJustIncreased) {
-        // 방금 시퀀스 완성으로 게임 종료 → 시퀀스 팝업 → 1초 후 결과창
-        const lastSeq = game.completedSequences[seqCount - 1];
-        if (lastSeq) setSequencePopup(lastSeq.teamId);
+        // 방금 시퀀스 완성으로 게임 종료 → 보드 2초 노출(시퀀스 팝업 없음) 후 결과창
         const t = setTimeout(() => {
           setShowResultOverlay(true);
-          setSequencePopup(null);
-        }, 1000);
+        }, 2000);
         return () => clearTimeout(t);
       }
       if (!wasPlaying) {
@@ -883,18 +900,20 @@ export default function GamePage() {
     .filter((p) => p.role === "participant")
     .map((p) => ({ uid: p.uid, seat: p.seat ?? 0, teamId: (p.teamId ?? "A") as TeamId }));
 
+  const gameEnded = game?.phase === "ended";
+
   const handleSelectCard = useCallback(
     (cardId: string) => {
-      if (!isMyTurn) return;
+      if (gameEnded || !isMyTurn) return;
       setSelectedCard((prev) => (prev === cardId ? null : cardId));
       setTxError(null);
     },
-    [isMyTurn],
+    [isMyTurn, gameEnded],
   );
 
   const handleCellClick = useCallback(
     async (cellId: number) => {
-      if (!selectedCard || !isMyTurn || !game || txPending) return;
+      if (gameEnded || !selectedCard || !isMyTurn || !game || txPending) return;
 
       const expectedVersion = game.version;
       let action: GameAction;
@@ -924,7 +943,7 @@ export default function GamePage() {
         setTxPending(false);
       }
     },
-    [selectedCard, isMyTurn, game, txPending, roomId, participants],
+    [gameEnded, selectedCard, isMyTurn, game, txPending, roomId, participants],
   );
 
   if (loading) {
@@ -961,20 +980,33 @@ export default function GamePage() {
           game={game}
           myTeamId={me?.teamId}
           onGoHome={() => router.push("/")}
+          onClose={() => setShowResultOverlay(false)}
         />
       )}
 
       {/* ── 상단 상태 표시줄 ──────────────────────────────────────── */}
       <header className="shrink-0 px-4 py-3 bg-dq-charcoal border-b border-white/10 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <span className="text-xs text-dq-white/50">턴</span>
-          <span className="font-mono font-bold text-dq-white text-sm">
-            {game?.turnNumber ?? "-"}
-          </span>
-          {isMyTurn && (
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-400/20 text-amber-400 border border-amber-400/30">
-              내 차례
-            </span>
+          {gameEnded && room?.roomCode ? (
+            <button
+              type="button"
+              onClick={() => router.push(`/lobby/${room.roomCode}`)}
+              className="px-3 py-1.5 rounded-xl text-sm font-bold bg-white/10 text-dq-white border border-white/20 hover:bg-white/20 transition-colors"
+            >
+              나가기
+            </button>
+          ) : (
+            <>
+              <span className="text-xs text-dq-white/50">턴</span>
+              <span className="font-mono font-bold text-dq-white text-sm">
+                {game?.turnNumber ?? "-"}
+              </span>
+              {isMyTurn && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-400/20 text-amber-400 border border-amber-400/30">
+                  내 차례
+                </span>
+              )}
+            </>
           )}
         </div>
         <div className="flex items-center gap-3">
@@ -1035,6 +1067,7 @@ export default function GamePage() {
             txPending={txPending}
             txError={txError}
             onClearError={() => setTxError(null)}
+            gameEnded={gameEnded}
           />
         </aside>
       </div>
@@ -1085,6 +1118,7 @@ export default function GamePage() {
           txPending={txPending}
           txError={txError}
           onClearError={() => setTxError(null)}
+          gameEnded={gameEnded}
         />
       </div>
     </main>
