@@ -1,0 +1,31 @@
+[
+  "o_o_1",      "spade_2_1",   "spade_3_1",   "spade_4_1",   "spade_5_1",
+  "spade_6_1",  "spade_7_1",   "spade_8_1",   "spade_9_1",   "o_o_2",
+
+  "clover_6_1", "clover_5_1",  "clover_4_1",  "clover_3_1",  "clover_2_1",
+  "heart_a_1",  "heart_k_1",   "heart_q_1",   "heart_10_1",  "spade_10_1",
+
+  "clover_7_1", "spade_a_1",   "diamond_2_1", "diamond_3_1", "diamond_4_1",
+  "diamond_5_1","diamond_6_1", "diamond_7_1", "heart_9_1",   "spade_q_1",
+
+  "clover_8_1", "spade_k_1",   "clover_6_2",  "clover_5_2",  "clover_4_2",
+  "clover_3_2", "clover_2_2",  "diamond_8_1", "heart_8_1",   "spade_k_2",
+
+  "clover_9_1", "spade_q_2",   "clover_7_2",  "heart_6_1",   "heart_5_1",
+  "heart_4_1",  "heart_a_2",   "diamond_9_1", "heart_7_1",   "spade_a_2",
+
+  "clover_10_1","spade_10_2",  "clover_8_2",  "heart_7_2",   "heart_2_1",
+  "heart_3_1",  "heart_k_2",   "diamond_10_1","heart_6_2",   "diamond_2_2",
+
+  "clover_q_1", "spade_9_2",   "clover_9_2",  "heart_8_2",   "heart_9_2",
+  "heart_10_2", "heart_q_2",   "diamond_q_1", "heart_5_2",   "diamond_3_2",
+
+  "clover_k_1", "spade_8_2",   "clover_10_2", "clover_q_2",  "clover_k_2",
+  "clover_a_1", "diamond_a_1", "diamond_k_1", "heart_4_2",   "diamond_4_2",
+
+  "clover_a_2", "spade_7_2",   "spade_6_2",   "spade_5_2",   "spade_4_2",
+  "spade_3_2",  "spade_2_2",   "heart_2_2",   "heart_3_2",   "diamond_5_2",
+
+  "o_o_3",      "diamond_a_2", "diamond_q_2", "diamond_k_2", "diamond_10_2",
+  "diamond_9_2","diamond_8_2", "diamond_7_2", "diamond_6_2", "o_o_4"
+]

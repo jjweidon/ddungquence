@@ -16,23 +16,23 @@
 ---
 
 ## M1. 로비(E2E)
-- [ ] 방 생성: `rooms` + `roomCodes`
-- [ ] 방 참가: 코드 → roomId 조회 → players 문서 생성
-- [ ] 참가자 리스트 실시간 표시
-- [ ] Ready 토글 / 팀 선택
-- [ ] host만 “게임 시작” 버튼
+- [x] 방 생성: `rooms` + `roomCodes` (`roomApi.ts` `createRoom()`, 랜딩 페이지 연결)
+- [x] 방 참가: 코드 → roomId 조회 → players 문서 생성 (`joinRoomByCode()` + 로비 참가 폼)
+- [x] 참가자 리스트 실시간 표시 (`subscribeToPlayers()` onSnapshot 구독)
+- [x] Ready 토글 / 팀 선택 (`updatePlayerReady()`, `updatePlayerTeam()` + ActionBar)
+- [x] host만 "게임 시작" 버튼 (ActionBar `isHost` 조건 분기)
 
 **DoD**
-- [ ] 2~4명이 로비에 모이고, Ready/팀 변경이 서로 실시간 반영
+- [ ] 2~4명이 로비에 모이고, Ready/팀 변경이 서로 실시간 반영 (E2E 검증 필요)
 
 ---
 
 ## M2. 게임 엔진(로컬 단위 테스트)
-- [ ] 카드/덱 모델(104장) + 셔플
-- [ ] 보드 레이아웃 상수 JSON 확정(내용은 01-game-rules boardImages와 동일, 클라이언트에서는 JSON만 사용, 18-board-layout 참조)
-- [ ] 칩 점유 맵(chipsByCell) 기반 보드 상태
-- [ ] 잭/데드 카드 규칙 함수
-- [ ] 시퀀스 판정 알고리즘
+- [x] 카드/덱 모델(104장) + 셔플 (`src/domain/cards/deck.ts`)
+- [x] 보드 레이아웃 상수 JSON 확정(내용은 01-game-rules boardImages와 동일, 클라이언트에서는 JSON만 사용, 18-board-layout 참조) (`src/domain/board/board-layout.v1.json`)
+- [x] 칩 점유 맵(chipsByCell) 기반 보드 상태 (`src/domain/types.ts` — `ChipsByCell` 타입 정의)
+- [x] 잭/데드 카드 규칙 함수 (`src/domain/rules/jacks.ts`, `deadCard.ts`)
+- [x] 시퀀스 판정 알고리즘 (`src/domain/rules/sequenceDetect.ts`, Vitest 52개 통과)
 
 **DoD**
 - [ ] domain 함수만으로 한 턴 진행이 가능(입력 state + action → 출력 state)
