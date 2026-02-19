@@ -7,11 +7,14 @@ import {
   getRoomIdByCode,
   joinRoomByCode,
   subscribeToPlayers,
+  subscribeToRoom,
   updatePlayerReady,
   updatePlayerTeam,
   getRoom,
   leaveRoom,
 } from "@/features/room/roomApi";
+import { sortParticipantsRedBlue } from "@/shared/lib/players";
+import { startGame } from "@/features/game/gameApi";
 import type { RoomPlayerDoc, TeamId } from "@/features/room/types";
 import { getDoc, getDocs, collection, doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { getFirestoreDb } from "@/lib/firebase/client";
@@ -78,7 +81,7 @@ function PlayerSection({
   hostUid: string | null;
   myUid: string | null;
 }) {
-  const participants = players.filter((p) => p.role === "participant");
+  const participants = sortParticipantsRedBlue(players);
   return (
     <section className="bg-dq-charcoal border border-white/10 rounded-2xl p-4">
       <h2 className="text-xs font-bold tracking-widest text-dq-white/70 uppercase mb-3">
@@ -168,6 +171,7 @@ function ActionBar({
   onSpectatorJoin,
   readyPending,
   joinPending,
+  startPending,
 }: {
   me: RoomPlayerDoc | undefined;
   isHost: boolean;
@@ -179,6 +183,7 @@ function ActionBar({
   onSpectatorJoin: () => void;
   readyPending: boolean;
   joinPending: boolean;
+  startPending: boolean;
 }) {
   const allReady =
     participants.length >= 2 && participants.every((p) => p.ready);
@@ -223,10 +228,10 @@ function ActionBar({
               <button
                 type="button"
                 onClick={onStartGame}
-                disabled={!allReady}
+                disabled={!allReady || startPending}
                 className="w-full min-h-[48px] py-2.5 rounded-xl text-sm font-bold bg-dq-red text-dq-white hover:bg-dq-redLight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dq-redLight disabled:opacity-50"
               >
-                게임 시작
+                {startPending ? "시작 중…" : "게임 시작"}
               </button>
             )}
           </>
@@ -263,7 +268,9 @@ export default function LobbyPage() {
   const [joinNickname, setJoinNickname] = useState("");
   const [joinPending, setJoinPending] = useState(false);
   const [readyPending, setReadyPending] = useState(false);
+  const [startPending, setStartPending] = useState(false);
   const unsubRef = useRef<(() => void) | null>(null);
+  const unsubRoomRef = useRef<(() => void) | null>(null);
 
   const isHost = uid !== null && hostUid !== null && uid === hostUid;
   const me = players.find((p) => p.uid === uid);
@@ -271,19 +278,33 @@ export default function LobbyPage() {
   const canJoinAsParticipant =
     me?.role === "spectator" && participants.length < MAX_PARTICIPANTS;
 
-  const setupRoom = useCallback(async (rid: string) => {
-    unsubRef.current?.();
-    const room = await getRoom(rid);
-    if (!room) {
-      setError("방을 찾을 수 없습니다.");
-      return;
-    }
-    setHostUid(room.hostUid);
-    setStatus("ready");
-    unsubRef.current = subscribeToPlayers(rid, (newPlayers) => {
-      setPlayers(newPlayers);
-    });
-  }, []);
+  const setupRoom = useCallback(
+    async (rid: string) => {
+      unsubRef.current?.();
+      unsubRoomRef.current?.();
+
+      const room = await getRoom(rid);
+      if (!room) {
+        setError("방을 찾을 수 없습니다.");
+        return;
+      }
+      setHostUid(room.hostUid);
+      setStatus("ready");
+
+      // 플레이어 목록 구독
+      unsubRef.current = subscribeToPlayers(rid, setPlayers);
+
+      // 방 상태 구독: status가 "playing"이 되면 모든 클라이언트 game 화면으로 이동
+      unsubRoomRef.current = subscribeToRoom(rid, (roomData) => {
+        if (!roomData) return;
+        setHostUid(roomData.hostUid);
+        if (roomData.status === "playing") {
+          router.push(`/game/${rid}`);
+        }
+      });
+    },
+    [router],
+  );
 
   useEffect(() => {
     if (!code || code.length < 4) {
@@ -322,6 +343,7 @@ export default function LobbyPage() {
 
     return () => {
       unsubRef.current?.();
+      unsubRoomRef.current?.();
     };
   }, [code, setupRoom]);
 
@@ -422,8 +444,17 @@ export default function LobbyPage() {
     }
   };
 
-  const handleStartGame = () => {
-    router.push(`/game/${roomId}`);
+  const handleStartGame = async () => {
+    if (!roomId || !isHost || startPending) return;
+    setError(null);
+    setStartPending(true);
+    try {
+      await startGame(roomId);
+      // 모든 클라이언트는 subscribeToRoom의 "playing" 상태 감지로 자동 이동
+    } catch (err) {
+      setError((err as Error).message);
+      setStartPending(false);
+    }
   };
 
   // ─── need-join: 방 참가 폼 ───────────────────────────────────
@@ -527,6 +558,7 @@ export default function LobbyPage() {
           onSpectatorJoin={handleSpectatorJoin}
           readyPending={readyPending}
           joinPending={joinPending}
+          startPending={startPending}
         />
       )}
     </main>

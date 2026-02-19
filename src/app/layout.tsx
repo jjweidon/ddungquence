@@ -16,7 +16,7 @@ const notoSansKR = Noto_Sans_KR({
 });
 
 export const metadata: Metadata = {
-  title: "뚱퀀스 · DdungQuence",
+  title: "뚱퀀스",
   description: "5줄을 완성하는 온라인 보드게임",
 };
 

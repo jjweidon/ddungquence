@@ -242,6 +242,22 @@ export async function getRoom(roomId: string): Promise<{
 }
 
 /**
+ * rooms/{roomId} 문서를 실시간 구독합니다.
+ * 로비에서 status 변경 감지(→ "playing" 시 게임 화면 이동),
+ * 게임에서 공개 game 상태 구독에 사용합니다.
+ */
+export function subscribeToRoom(
+  roomId: string,
+  onUpdate: (data: import("./types").RoomDoc | null) => void,
+): Unsubscribe {
+  const db = getFirestoreDb();
+  const roomRef = doc(db, "rooms", roomId);
+  return onSnapshot(roomRef, (snap) => {
+    onUpdate(snap.exists() ? (snap.data() as import("./types").RoomDoc) : null);
+  });
+}
+
+/**
  * 게임 시작 전(로비)에만 방을 나갑니다.
  * - 본인 플레이어 문서 삭제
  * - 방장이 나가면: 남은 참여자 중 1명을 새 방장으로 지정. 남은 참여자가 없으면 방·방코드 삭제

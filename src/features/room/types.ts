@@ -20,6 +20,27 @@ export type RoomPlayerDocWrite = Omit<RoomPlayerDoc, "joinedAt" | "lastSeenAt"> 
   lastSeenAt: Timestamp | ReturnType<typeof import("firebase/firestore").serverTimestamp>;
 };
 
+export interface CompletedSequenceEntry {
+  teamId: TeamId;
+  cells: number[];
+  createdTurn: number;
+}
+
+export interface PublicGameState {
+  version: number;
+  phase: "setup" | "playing" | "ended";
+  turnNumber: number;
+  currentUid: string;
+  currentSeat: number;
+  chipsByCell: Record<string, TeamId>;
+  completedSequences: CompletedSequenceEntry[];
+  discardTopBySeat: Record<string, string | null>;
+  scoreByTeam: Record<TeamId, number>;
+  deckMeta: { drawLeft: number; reshuffles: number };
+  winner?: { teamId: TeamId; atTurn: number };
+  lastAction?: { uid: string; type: string; at: Timestamp };
+}
+
 export interface RoomDoc {
   roomCode: string;
   status: "lobby" | "playing" | "ended";
@@ -33,6 +54,7 @@ export interface RoomDoc {
     sequenceToWin: 2;
     oneEyedJackCanBreakSequence: boolean;
   };
+  game?: PublicGameState;
 }
 
 export interface RoomCodeDoc {

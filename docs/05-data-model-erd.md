@@ -204,11 +204,20 @@ type PrivateDealerDoc = {
 - **잭**: `clover_j_1`/`clover_j_2`, `diamond_j_1`/`diamond_j_2`, `heart_j_1`/`heart_j_2`, `spade_j_1`/`spade_j_2` 등. 2-eye / 1-eye 구분은 문양 기준 매핑 테이블로 처리(01 문서 참조).
 
 ### 5.1 카드 이미지 경로
-- 카드 이미지는 **svg** 또는 **webp** 포맷을 사용하며, **카드 에셋의 베이스 디렉터리** 아래에 둔다.
-- 일반적인 프로젝트에서는 `public/cards`가 그 베이스가 되지만, **public 폴더 위치는 프로젝트 세팅에 따라 달라질 수 있음** (예: 다른 프레임워크에서는 `static/cards`, 배포 경로 변경 등). 따라서 앱에서는 **카드 베이스 경로**를 설정(환경변수, next.config, 빌드 상수 등)으로 두고, 실제 파일은 다음 규칙으로 참조한다.
-  - `{CARDS_BASE}/svg/{cardId}.svg` 또는 `{CARDS_BASE}/webp/{cardId}.webp`
-  - 예: cardId `spade_2_1` → `public/cards/svg/spade_2_1.svg` (베이스가 `public/cards`일 때)
-- 구현 시 카드 ID만으로 이미지 URL/경로를 유도할 수 있도록, 베이스 경로와 포맷(svg/webp)만 설정에서 결정하면 된다.
+- 카드 이미지는 **webp** 포맷을 사용하며, 경로는 다음 규칙으로 고정한다.
+  ```
+  /cards/webp/{cardId}.webp
+  ```
+  - 예: `spade_2_1` → `/cards/webp/spade_2_1.webp`
+  - 예: `heart_j_1` → `/cards/webp/heart_j_1.webp`
+  - 예: `o_o_3`(코너) → `/cards/webp/o_o_3.webp`
+- 실제 파일 위치: `public/cards/webp/{cardId}.webp` (108장: 일반 104장 + 코너 4장)
+- **유틸리티**: `src/shared/lib/cardImage.ts`
+  - `cardImageUrl(cardId)` → URL 문자열 반환
+  - `cardAltText(cardId)` → 한국어 접근성 alt 텍스트
+- **사용 위치**
+  - 손패(hand): `src/app/game/[roomId]/page.tsx` — `CardTile` 컴포넌트
+  - 보드 셀(board cell): M4 구현 시 동일 유틸리티 사용
 
 ---
 
