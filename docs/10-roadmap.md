@@ -41,7 +41,7 @@
 
 ## M3. 게임 시작(딜링/초기화)
 - [x] host가 dealer로 덱 생성/보관(privateDealer) (`gameApi.ts` `startGame()` → WriteBatch)
-- [x] 각 플레이어 privateHands 초기 딜링 (`privateHands/{uid}` 배치 쓰기, 2인 7장/3~4인 6장)
+- [x] 각 플레이어 privateHands 초기 딜링 (`privateHands/{uid}` 배치 쓰기, 2~4인 6장)
 - [x] public game 초기 상태 write (`rooms/{roomId}.game` + `status="playing"`)
 
 **DoD**

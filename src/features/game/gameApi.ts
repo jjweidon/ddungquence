@@ -17,7 +17,7 @@ import type { PrivateHandDoc, PrivateDealerDoc, GameAction } from "./types";
 
 /** 플레이어 수에 따른 초기 손패 장수 */
 function handSize(playerCount: number): number {
-  return playerCount === 2 ? 7 : 6;
+  return 6;
 }
 
 /**
