@@ -416,9 +416,14 @@ function LastCardThumb({
   size = "md",
 }: {
   cardId: string;
-  size?: "sm" | "md";
+  size?: "xs" | "sm" | "md";
 }) {
-  const sizeClass = size === "sm" ? "w-6 h-[34px]" : "w-9 h-12";
+  const sizeClass =
+    size === "xs"
+      ? "w-4 h-[22px]"
+      : size === "sm"
+        ? "w-6 h-[34px]"
+        : "w-9 h-12";
   return (
     <img
       src={cardImageUrl(cardId)}
@@ -540,7 +545,7 @@ function PlayerStrip({
           <div
             key={p.uid}
             className={[
-              "flex flex-col items-center gap-1 p-2 rounded-xl border min-w-0",
+              "flex flex-col items-center px-2 py-0.5 rounded-xl border min-w-0",
               teamBg,
               isCurrentTurn
                 ? "border-amber-400 ring-1 ring-amber-400"
@@ -549,14 +554,14 @@ function PlayerStrip({
           >
             <span
               className={[
-                "text-xs truncate w-full text-center px-1.5 py-0.5 rounded",
+                "text-xs truncate w-full text-center px-1.5 rounded",
                 isMe ? "bg-white/15 font-bold text-dq-white" : "text-dq-white/80",
               ].join(" ")}
             >
               {p.nickname}
             </span>
             {lastCardId && (
-              <LastCardThumb cardId={lastCardId} size="sm" />
+              <LastCardThumb cardId={lastCardId} size="xs" />
             )}
           </div>
         );
