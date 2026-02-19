@@ -31,9 +31,16 @@
 ### [D-20260219-01] 잭 종류 판별: 문양 대신 카드 ID 번호(j_1/j_2) 기준
 - 맥락: 기획 변경으로 Two-eyed/One-eyed Jack 구분 방식을 문양(클로버·다이아 vs 하트·스페이드)에서 카드 ID variant 번호로 변경
 - 고려한 옵션: (1) 기존 문양 기준 유지 (2) j_1/j_2 기준으로 변경
-- 결정: **j_2** = Two-eyed Jack(와일드 배치), **j_1** = One-eyed Jack(상대 칩 제거). `cardId.endsWith("_j_2")` / `endsWith("_j_1")`로 판별
+- 결정: **j_2** = Two-eyed Jack(와일드 배치), **j_1** = One-eyed Jack(칩 제거). `cardId.endsWith("_j_2")` / `endsWith("_j_1")`로 판별
 - 근거: 카드 이미지/디자인이 j_1(한 눈), j_2(두 눈)로 구분되어 있어 ID와 일치시킴
 - 영향 범위: `src/domain/rules/jacks.ts`, 문서(01, 05, 08, 17, 18), Cursor rules
+- 후속 작업: 없음
+
+### [D-20260220-01] One-eyed Jack: 자기 팀 칩 제거 허용
+- 맥락: 6목 해소 등 전략상 자기 팀 칩을 제거해야 하는 경우가 있음
+- 결정: One-eyed Jack으로 **상대 칩뿐 아니라 자기 팀 칩도** 제거 가능(완성 시퀀스 칩은 여전히 제거 불가)
+- 근거: 룰 해석 확장으로 전략 폭 확대
+- 영향 범위: `src/domain/rules/highlight.ts`, `src/features/game/gameApi.ts`, 문서(01), Cursor rules
 - 후속 작업: 없음
 
 ## 3) 핵심 리스크

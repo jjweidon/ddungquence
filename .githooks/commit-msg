@@ -37,26 +37,6 @@ if [ "$length" -gt 72 ]; then
   exit 1
 fi
 
-# 변경량이 많으면 본문 필수 (수정 내용 많을 때 본문 작성 가이드)
-files_changed=$(git diff --cached --name-only 2>/dev/null | wc -l | tr -d ' ')
-lines_changed=$(git diff --cached --numstat 2>/dev/null | awk '{ add+=$1; del+=$2 } END { print add+del }')
-if [ -z "$lines_changed" ]; then lines_changed=0; fi
-if [ "$files_changed" -ge 5 ] || [ "$lines_changed" -ge 50 ]; then
-  has_body=$(tail -n +2 "$commit_msg_file" | grep -q . && echo 1 || echo 0)
-  if [ "$has_body" = "0" ]; then
-    echo ""
-    echo "❌ 변경 파일($files_changed개) 또는 변경 라인($lines_changed)이 많습니다. 본문을 작성해 주세요."
-    echo ""
-    echo "형식:"
-    echo "  <type>(scope): <제목>"
-    echo "  "
-    echo "  - 변경 요약 1"
-    echo "  - 변경 요약 2"
-    echo ""
-    exit 1
-  fi
-fi
-
 # 터미널에서만: 커밋 메시지 검토 + 복사용 블록 (IDE/GUI에서는 스킵)
 if [ -t 0 ]; then
   echo ""

@@ -42,7 +42,7 @@ export type GameAction =
       type: "TURN_PLAY_JACK_REMOVE";
       expectedVersion: number;
       cardId: string;        // *_j_1 (One-eyed)
-      removeCellId: number;  // 상대 칩 제거
+      removeCellId: number;  // 칩 제거 (상대·자기 팀 모두 가능)
     };
 
 // 주의: 변형 규칙 고정 → 데드 카드는 교체/버리기 없음. TURN_EXCHANGE_DEAD_CARD 미지원.
@@ -84,7 +84,7 @@ export type GameAction =
 
 잭:
 - 2-eye: targetCellId가 비어 있음
-- 1-eye: removeCellId에 **상대** 칩 존재 + completedSequences에 포함되지 않음
+- 1-eye: removeCellId에 칩 존재(상대·자기 팀 모두) + completedSequences에 포함되지 않음
 - 추가 변형: 1-eye로 제거된 칸은 **바로 다음 플레이어만** 2-eye로 배치 불가
 
 데드 카드:

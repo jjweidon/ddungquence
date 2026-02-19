@@ -203,7 +203,6 @@ export async function submitTurnAction(
       const { removeCellId } = action;
       const cellChip = newChipsByCell[String(removeCellId)];
       if (!cellChip) throw new Error("해당 칸에 칩이 없습니다.");
-      if (cellChip === me.teamId) throw new Error("자신의 칩은 제거할 수 없습니다.");
       const sequenceCells = new Set(game.completedSequences.flatMap((s) => s.cells));
       if (sequenceCells.has(removeCellId)) {
         throw new Error("완성된 시퀀스의 칩은 제거할 수 없습니다.");
