@@ -455,6 +455,12 @@ function PlayerListPanel({
             p.seat !== undefined && game?.discardTopBySeat
               ? game.discardTopBySeat[String(p.seat)] ?? null
               : null;
+          const teamBg =
+            p.teamId === "A"
+              ? "bg-dq-redLight/20"
+              : p.teamId === "B"
+                ? "bg-dq-blueLight/20"
+                : "bg-dq-black";
           const teamBorder =
             p.teamId === "A"
               ? "border-dq-red"
@@ -466,9 +472,10 @@ function PlayerListPanel({
               key={p.uid}
               className={[
                 "flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all",
+                teamBg,
                 isCurrentTurn
-                  ? "bg-amber-400/10 border-amber-400/40 ring-1 ring-amber-400/40"
-                  : "bg-dq-black border-white/10",
+                  ? "border-amber-400/60 ring-1 ring-amber-400/60"
+                  : "border-white/10",
               ].join(" ")}
             >
               <div
@@ -489,7 +496,6 @@ function PlayerListPanel({
                       TURN
                     </span>
                   )}
-                  <TeamBadge teamId={p.teamId} />
                 </div>
                 <p className="text-sm text-dq-white/90 truncate mt-0.5">{p.nickname}</p>
               </div>
@@ -524,17 +530,23 @@ function PlayerStrip({
           p.seat !== undefined && game?.discardTopBySeat
             ? game.discardTopBySeat[String(p.seat)] ?? null
             : null;
+        const teamBg =
+          p.teamId === "A"
+            ? "bg-dq-redLight/20"
+            : p.teamId === "B"
+              ? "bg-dq-blueLight/20"
+              : "bg-dq-black";
         return (
           <div
             key={p.uid}
             className={[
               "flex flex-col items-center gap-1 p-2 rounded-xl border min-w-0",
+              teamBg,
               isCurrentTurn
-                ? "bg-dq-black border-amber-400 ring-1 ring-amber-400"
-                : "bg-dq-black border-white/10",
+                ? "border-amber-400 ring-1 ring-amber-400"
+                : "border-white/10",
             ].join(" ")}
           >
-            <TeamBadge teamId={p.teamId} />
             <span
               className={[
                 "text-xs truncate w-full text-center px-1.5 py-0.5 rounded",
@@ -987,10 +999,10 @@ export default function GamePage() {
       {/* ── 상단 상태 표시줄 ──────────────────────────────────────── */}
       <header className="shrink-0 px-4 py-3 bg-dq-charcoal border-b border-white/10 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          {gameEnded && room?.roomCode ? (
+          {gameEnded ? (
             <button
               type="button"
-              onClick={() => router.push(`/lobby/${room.roomCode}`)}
+              onClick={() => router.push("/")}
               className="px-3 py-1.5 rounded-xl text-sm font-bold bg-white/10 text-dq-white border border-white/20 hover:bg-white/20 transition-colors"
             >
               나가기
