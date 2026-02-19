@@ -13,6 +13,10 @@ Vercel Project Settings → Environment Variables에 다음을 등록:
 - `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`
 - `NEXT_PUBLIC_FIREBASE_APP_ID`
 
+관리자 페이지(`/admin`) 사용 시(선택):
+- `ADMIN_PASSWORD`: 관리자 비밀번호(접속·DB 초기화 시 사용)
+- `FIREBASE_SERVICE_ACCOUNT_KEY`: Firebase 서비스 계정 키 JSON 전체를 문자열로(DB 초기화에 필요). **비공개 유지**
+
 ## 3) Firebase Auth Authorized Domains
 Firebase Console → Authentication → Settings → Authorized domains에:
 - 로컬 개발: `localhost`
