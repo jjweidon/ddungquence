@@ -39,5 +39,5 @@ Firebase Console → Authentication → Settings → Authorized domains에:
   - 오프라인 UX 정책(턴 액션 금지)
 
 ## 7) DoD 체크리스트
-- [ ] Vercel 배포 후 Google 로그인 및 Firestore 연결 정상
+- [ ] Vercel 배포 후 Firebase Auth(현재 익명 인증) 및 Firestore 연결 정상
 - [ ] iOS Safari에서도 기본 플로우가 동작

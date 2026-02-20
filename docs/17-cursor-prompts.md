@@ -9,15 +9,15 @@
 ### 프롬프트
 - Next.js(App Router) + TypeScript + Tailwind 프로젝트를 만든 뒤, 아래 구조로 폴더를 구성해줘:
   - `src/lib/firebase/client.ts`
-  - `src/features/auth/ensureAuth.ts`
+  - `src/features/auth/ensureAnonAuth.ts` (또는 `ensureAuth.ts` — Google 로그인 시)
   - `src/app/page.tsx` (landing)
   - `src/app/lobby/[code]/page.tsx`
   - `src/app/game/[roomId]/page.tsx`
-- `ensureAuth()`를 만들어서 앱 진입 시 Google 로그인 팝업으로 uid를 발급받게 해줘.
+- 앱 진입 시 uid 발급: **현재 구현은 익명 인증** `ensureAnonAuth()`(Firebase Anonymous). Google 로그인으로 전환 시 `ensureAuth()` + `signInWithPopup(Google)` 사용.
 - 환경변수는 `NEXT_PUBLIC_FIREBASE_*`만 사용해.
 
 ### 완료 기준
-- `/` 접속 시 Google 로그인 후 uid가 발급되고 콘솔에 uid가 출력된다.
+- `/` 접속 시 (익명 또는 Google) 로그인 후 uid가 발급되고, 필요한 화면에서 uid를 사용할 수 있다.
 
 ---
 
@@ -72,8 +72,8 @@
 - 액션은 다음을 지원:
   - normal card: targetCellId에 칩 배치
   - two-eye jack: 어떤 빈칸 배치
-  - one-eye jack: 상대 칩 제거(완성 시퀀스 칩 제거 금지)
-  - dead card exchange: deadCard를 버리고 교체
+  - one-eye jack: 상대·자기 팀 칩 제거(완성 시퀀스 칩 제거 금지)
+  - 데드 카드: **변형 규칙 고정** — 교체/버리기 없음. 손에 유지하며 사용 불가로만 처리.
 - UI에서 가능한 칸/제거 가능한 칩 하이라이트를 제공해줘.
 
 ### 완료 기준
@@ -84,7 +84,7 @@
 ## P5. 폴리싱/배포
 ### 프롬프트
 - txPending 상태에서 UI 잠금/피드백(스피너)을 추가해줘.
-- offline 감지 시 턴 액션을 disable 해줘.
+- (선택) offline 감지 시 턴 액션을 disable — MVP에서는 미구현 가능.
 - Vercel 배포 체크리스트를 코드/README에 반영해줘.
 
 ### 완료 기준

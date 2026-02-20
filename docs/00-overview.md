@@ -11,7 +11,7 @@
 ### 기술 스택
 - 프론트: **Next.js(App Router) + TypeScript + TailwindCSS**
 - 실시간 동기화: **Firebase Firestore(무료 구간 중심 설계)**
-- 인증: **Firebase Auth(Google 로그인, 무료)**
+- 인증: **Firebase Auth** — 현재 구현은 익명 인증(Anonymous), 목표는 Google 로그인
 - 배포: **Vercel**
 
 ## 2) 성공 기준(Outcome)

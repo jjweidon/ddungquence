@@ -9,13 +9,14 @@
 
 ## 1) 계정/세션
 
-### FR-1 Google 로그인(P0)
-- 사용자는 앱 접속 시 Firebase Auth **Google 로그인**으로 uid를 발급받는다.
-- 닉네임은 Google 프로필 또는 로컬 저장 + 방 입장 시 public 프로필로 반영.
+### FR-1 계정/세션(P0)
+- 사용자는 앱 접속 시 Firebase Auth로 uid를 발급받는다.
+- **현재 구현**: **익명 인증**(Anonymous). Google 로그인 전환 시 FR-1은 Google 로그인으로 해석.
+- 닉네임은 Google 프로필(Google 사용 시) 또는 로컬 저장 + 방 입장 시 public 프로필로 반영.
 
 **수용 기준**
 - [ ] 새로고침해도 uid는 유지(동일 브라우저 기준)
-- [ ] 닉네임 미입력 시 Google displayName 또는 자동 닉네임(예: Player-AB12)
+- [ ] 닉네임 미입력 시 Google displayName(Google 사용 시) 또는 자동 닉네임(예: Player-AB12)
 
 ### FR-2 프로필 관리(P1)
 - 닉네임 변경, 아바타(색/아이콘) 선택
