@@ -14,6 +14,8 @@ export interface RoomPlayerDoc {
   readyAt?: Timestamp | null;
   joinedAt: Timestamp;
   lastSeenAt: Timestamp;
+  /** 봇 플레이어 여부. true이면 호스트 클라이언트가 턴을 자동 실행 */
+  isBot?: boolean;
 }
 
 /** setDoc 시 사용. joinedAt/lastSeenAt/readyAt에 serverTimestamp() 허용 */

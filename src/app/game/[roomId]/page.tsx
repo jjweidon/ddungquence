@@ -4,7 +4,8 @@ import { useEffect, useLayoutEffect, useState, useRef, useCallback, memo } from 
 import { useParams, useRouter } from "next/navigation";
 import { ensureAnonAuth } from "@/features/auth/ensureAnonAuth";
 import { subscribeToRoom, returnToLobby } from "@/features/room/roomApi";
-import { subscribeToHand, submitTurnAction } from "@/features/game/gameApi";
+import { subscribeToHand, submitTurnAction, submitBotTurnAction, getBotHand } from "@/features/game/gameApi";
+import { decideBotAction } from "@/domain/bot/botDecision";
 import { cardImageUrl, cardAltText } from "@/shared/lib/cardImage";
 import { sortParticipantsRedBlue } from "@/shared/lib/players";
 import { isDeadCard, getPlayableCells } from "@/domain/rules/deadCard";
@@ -843,6 +844,16 @@ export default function GamePage() {
   const timeoutAutoPlayDoneRef = useRef(false);
   /** 시간 초과 시 호출할 자동 플레이 함수(ref로 interval에서 안전하게 호출) */
   const runTimeoutAutoPlayRef = useRef<(() => void) | null>(null);
+  /** 봇 턴 30초 초과 시 호출할 TURN_PASS 함수 */
+  const runBotTimeoutRef = useRef<(() => void) | null>(null);
+  /** 봇 턴 실행 1회만 방지 */
+  const botTurnDoneRef = useRef<string>("");
+  /** 봇 턴 콜백에서 읽을 최신 game/participants/currentPlayer (effect 재실행 시 타이머 취소 방지용) */
+  const botTurnContextRef = useRef<{
+    game: PublicGameState;
+    participants: Array<{ uid: string; seat: number; teamId: TeamId }>;
+    currentPlayer: RoomPlayerDoc;
+  } | null>(null);
 
   const [sequencePopup, setSequencePopup] = useState<TeamId | null>(null);
   const [showResultOverlay, setShowResultOverlay] = useState(false);
@@ -912,23 +923,38 @@ export default function GamePage() {
   const game = room?.game;
   const isMyTurn = !!uid && game?.currentUid === uid;
   const me = players.find((p) => p.uid === uid);
+  const isHost = uid !== null && room?.hostUid === uid;
+  const currentPlayer = game ? players.find((p) => p.uid === game.currentUid) : null;
+  const isBotTurn = !!currentPlayer?.isBot && game?.phase === "playing";
 
-  // ── 턴 키 동기화 (타이머는 모든 플레이어에게 표시, 자동 플레이만 내 턴일 때) ─────────────────────
+  const participants = players
+    .filter((p) => p.role === "participant")
+    .map((p) => ({ uid: p.uid, seat: p.seat ?? 0, teamId: (p.teamId ?? "A") as TeamId }));
+
+  // 봇 턴 콜백에서 사용할 최신 context (매 렌더마다 갱신)
+  if (game && currentPlayer?.isBot && game.phase === "playing") {
+    botTurnContextRef.current = { game, participants, currentPlayer };
+  } else {
+    botTurnContextRef.current = null;
+  }
+
+  // ── 턴 키 동기화: 턴이 바뀔 때마다 타임아웃 플래그 리셋 ──────────────────
+  // 봇 턴(isBotTurn && isHost)도 30초 폴백이 필요하므로 함께 리셋
   useEffect(() => {
     if (!game || game.phase !== "playing") {
       setTurnSecondsLeft(null);
       return;
     }
     const turnKey = `${game.turnNumber}-${game.currentUid}`;
-    if (isMyTurn && lastTurnKeyRef.current !== turnKey) {
+    if (lastTurnKeyRef.current !== turnKey) {
       lastTurnKeyRef.current = turnKey;
       timeoutAutoPlayDoneRef.current = false;
-    } else if (!isMyTurn) {
-      lastTurnKeyRef.current = turnKey;
     }
-  }, [game?.turnNumber, game?.currentUid, game?.phase, isMyTurn]);
+  }, [game?.turnNumber, game?.currentUid, game?.phase]);
 
-  // ── 1초마다 남은 시간 갱신 (전원 표시) + 내 턴일 때만 0이면 자동 플레이 ───────────────────
+  // ── 1초마다 남은 시간 갱신 + 30초 초과 시 자동 패스 ────────────────────
+  // 내 턴: 기존 자동 플레이 실행
+  // 봇 턴(호스트 클라이언트): 봇이 2~7초 딜레이 중 실패했을 때 폴백으로 TURN_PASS 제출
   useEffect(() => {
     if (game?.phase !== "playing") return;
 
@@ -941,9 +967,14 @@ export default function GamePage() {
       const left = Math.max(0, Math.ceil(TURN_SECONDS - elapsed));
       setTurnSecondsLeft(left);
 
-      if (isMyTurn && left <= 0 && !timeoutAutoPlayDoneRef.current) {
-        timeoutAutoPlayDoneRef.current = true;
-        runTimeoutAutoPlayRef.current?.();
+      if (left <= 0 && !timeoutAutoPlayDoneRef.current) {
+        if (isMyTurn) {
+          timeoutAutoPlayDoneRef.current = true;
+          runTimeoutAutoPlayRef.current?.();
+        } else if (isBotTurn && isHost) {
+          timeoutAutoPlayDoneRef.current = true;
+          runBotTimeoutRef.current?.();
+        }
       }
     };
 
@@ -952,6 +983,8 @@ export default function GamePage() {
     return () => clearInterval(interval);
   }, [
     isMyTurn,
+    isBotTurn,
+    isHost,
     game?.phase,
     game?.turnNumber,
     game?.currentUid,
@@ -1009,10 +1042,6 @@ export default function GamePage() {
     }
   }, [game]);
 
-  const participants = players
-    .filter((p) => p.role === "participant")
-    .map((p) => ({ uid: p.uid, seat: p.seat ?? 0, teamId: (p.teamId ?? "A") as TeamId }));
-
   const gameEnded = game?.phase === "ended";
 
   /** 시간 초과 시 자동 플레이: 잭 제외 → 가능한 일반 카드 중 하나로 빈 칸 배치, 불가 시 패스 */
@@ -1066,6 +1095,68 @@ export default function GamePage() {
       runTimeoutAutoPlayRef.current = null;
     };
   }, [handleTurnTimeout]);
+
+  /** 봇 턴 30초 초과: 호스트가 봇 대신 TURN_PASS 제출 */
+  const handleBotTurnTimeout = useCallback(async () => {
+    if (!game || !currentPlayer?.isBot || gameEnded) return;
+    const botUid = currentPlayer.uid;
+    try {
+      await submitBotTurnAction(roomId, botUid, { type: "TURN_PASS", expectedVersion: game.version }, participants);
+    } catch {
+      // 이미 다른 액션이 제출됐거나 버전 불일치 — 무시
+    }
+  }, [game, currentPlayer, gameEnded, roomId, participants]);
+
+  useEffect(() => {
+    runBotTimeoutRef.current = handleBotTurnTimeout;
+    return () => {
+      runBotTimeoutRef.current = null;
+    };
+  }, [handleBotTurnTimeout]);
+
+  // ── 봇 턴 자동 실행 (호스트 클라이언트에서만 동작) ──────────────────────
+  // 의존성을 turnKey만 두어, 턴이 바뀔 때만 effect 재실행 → 타이머가 리렌더 시 cleanup으로 취소되지 않음
+  const botTurnKey = isBotTurn && game ? `${game.turnNumber}-${game.currentUid}` : null;
+
+  useEffect(() => {
+    if (!botTurnKey || !isHost || !roomId) return;
+    if (botTurnDoneRef.current === botTurnKey) return;
+    botTurnDoneRef.current = botTurnKey;
+
+    const delayMs = 2000 + Math.random() * 5000; // 2~7초
+
+    const timer = setTimeout(async () => {
+      const ctx = botTurnContextRef.current;
+      if (!ctx || ctx.game.phase !== "playing") return;
+
+      const { game: g, participants: p, currentPlayer: botPlayer } = ctx;
+      try {
+        const botHand = await getBotHand(roomId, botPlayer.uid);
+        if (botHand.length === 0) return;
+
+        const botTeamId = (botPlayer.teamId ?? "A") as TeamId;
+        const action = decideBotAction({
+          chipsByCell: g.chipsByCell ?? {},
+          completedSequences: g.completedSequences ?? [],
+          botTeamId,
+          hand: botHand,
+          oneEyeLockedCell: g.oneEyeLockedCell,
+          twoEyeLockedCell: g.twoEyeLockedCell,
+          scoreByTeam: g.scoreByTeam ?? { A: 0, B: 0 },
+          expectedVersion: g.version,
+        });
+
+        await submitBotTurnAction(roomId, botPlayer.uid, action, p);
+      } catch (err) {
+        const msg = (err as Error).message ?? "봇 오류";
+        if (msg !== "VERSION_MISMATCH" && msg !== "봇 차례가 아닙니다.") {
+          console.warn("[bot] 턴 실행 실패:", msg);
+        }
+      }
+    }, delayMs);
+
+    return () => clearTimeout(timer);
+  }, [botTurnKey, isHost, roomId]);
 
   const handleSelectCard = useCallback(
     (cardId: string) => {

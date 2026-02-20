@@ -374,6 +374,102 @@ export async function returnToLobby(roomId: string): Promise<void> {
 }
 
 /**
+ * 호스트만 호출 가능. 봇 플레이어를 로비에 추가합니다.
+ * 봇 uid: "bot_<nickname>" 형식 (예: bot_뚱1)
+ * 봇은 즉시 ready=true 상태로 추가됩니다.
+ */
+export async function addBot(
+  roomId: string,
+  nickname: string,
+): Promise<void> {
+  const db = getFirestoreDb();
+  const auth = getFirebaseAuth();
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error("로그인이 필요합니다.");
+
+  const roomRef = doc(db, "rooms", roomId);
+  const roomSnap = await getDoc(roomRef);
+  if (!roomSnap.exists()) throw new Error("방을 찾을 수 없습니다.");
+
+  const roomData = roomSnap.data();
+  if (roomData.hostUid !== uid) throw new Error("호스트만 봇을 추가할 수 있습니다.");
+  if (roomData.status !== "lobby") throw new Error("로비 상태에서만 봇을 추가할 수 있습니다.");
+
+  const playersRef = collection(db, "rooms", roomId, "players");
+  const playersSnap = await getDocs(playersRef);
+  const participants = playersSnap.docs
+    .map((d) => d.data() as RoomPlayerDoc)
+    .filter((p) => p.role === "participant");
+
+  if (participants.length >= 4) throw new Error("방이 가득 찼습니다.");
+
+  const redCount = participants.filter((p) => p.teamId === "A").length;
+  const blueCount = participants.filter((p) => p.teamId === "B").length;
+  const teamId: TeamId = redCount <= blueCount ? "A" : "B";
+
+  const occupiedSeats = new Set(
+    participants.map((p) => p.seat).filter((s) => s !== undefined),
+  );
+  let seat = 0;
+  if (teamId === "A") {
+    for (let s = 0; ; s += 2) {
+      if (!occupiedSeats.has(s)) { seat = s; break; }
+    }
+  } else {
+    for (let s = 1; ; s += 2) {
+      if (!occupiedSeats.has(s)) { seat = s; break; }
+    }
+  }
+
+  const botUid = `bot_${nickname}`;
+  const now = serverTimestamp();
+  const botRef = doc(db, "rooms", roomId, "players", botUid);
+
+  await setDoc(botRef, {
+    uid: botUid,
+    nickname,
+    role: "participant",
+    teamId,
+    seat,
+    ready: true,
+    readyAt: now,
+    joinedAt: now,
+    lastSeenAt: now,
+    isBot: true,
+  } satisfies RoomPlayerDocWrite & { isBot: boolean });
+}
+
+/**
+ * 호스트만 호출 가능. 봇 플레이어를 로비에서 제거합니다.
+ */
+export async function removeBot(
+  roomId: string,
+  botUid: string,
+): Promise<void> {
+  const db = getFirestoreDb();
+  const auth = getFirebaseAuth();
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error("로그인이 필요합니다.");
+
+  const roomRef = doc(db, "rooms", roomId);
+  const roomSnap = await getDoc(roomRef);
+  if (!roomSnap.exists()) throw new Error("방을 찾을 수 없습니다.");
+
+  const roomData = roomSnap.data();
+  if (roomData.hostUid !== uid) throw new Error("호스트만 봇을 제거할 수 있습니다.");
+  if (roomData.status !== "lobby") throw new Error("로비 상태에서만 봇을 제거할 수 있습니다.");
+
+  const botRef = doc(db, "rooms", roomId, "players", botUid);
+  const botSnap = await getDoc(botRef);
+  if (!botSnap.exists()) return;
+
+  const botData = botSnap.data() as RoomPlayerDoc;
+  if (!botData.isBot) throw new Error("봇 플레이어만 제거할 수 있습니다.");
+
+  await deleteDoc(botRef);
+}
+
+/**
  * 게임 시작 전(로비)에만 방을 나갑니다.
  * - 본인 플레이어 문서 삭제
  * - 방장이 나가면: 남은 참여자 중 1명을 새 방장으로 지정. 남은 참여자가 없으면 방·방코드 삭제

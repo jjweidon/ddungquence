@@ -382,6 +382,210 @@ export async function submitTurnAction(
 }
 
 /**
+ * 봇 턴 액션 제출.
+ *
+ * 호스트 클라이언트가 봇(botUid)을 대신해 액션을 제출한다.
+ * Phase 1: 봇의 uid로 공개 게임 상태 업데이트(기존 submitTurnAction과 동일 로직)
+ * Phase 2: privateHands/{botUid} + privateDealer/deck 업데이트
+ *
+ * 보안: 현재 호스트만 privateDealer/deck 에 접근 가능하므로,
+ * Firestore 보안 규칙에서 호스트가 privateHands/{botUid}를 읽고 쓸 수 있도록 허용해야 한다.
+ */
+export async function submitBotTurnAction(
+  roomId: string,
+  botUid: string,
+  action: GameAction,
+  participants: Array<{ uid: string; seat: number; teamId: TeamId }>,
+): Promise<void> {
+  const db = getFirestoreDb();
+  const auth = getFirebaseAuth();
+  const hostUid = auth.currentUser?.uid;
+  if (!hostUid) throw new Error("로그인이 필요합니다.");
+
+  const roomRef = doc(db, "rooms", roomId);
+  const deckRef = doc(db, "rooms", roomId, "privateDealer", "deck");
+  const handRef = doc(db, "rooms", roomId, "privateHands", botUid);
+
+  const botParticipant = participants.find((p) => p.uid === botUid);
+  if (!botParticipant) throw new Error("봇 플레이어를 참여자 목록에서 찾을 수 없습니다.");
+
+  // ── Phase 1: 봇 uid로 공개 상태 트랜잭션 ────────────────────────────
+  await runTransaction(db, async (tx) => {
+    const roomSnap = await tx.get(roomRef);
+    if (!roomSnap.exists()) throw new Error("방을 찾을 수 없습니다.");
+
+    const roomData = roomSnap.data();
+    const game = roomData.game as PublicGameState;
+
+    if (game.phase !== "playing") throw new Error("게임이 진행 중이 아닙니다.");
+    if (game.currentUid !== botUid) throw new Error("봇 차례가 아닙니다.");
+    if (game.version !== action.expectedVersion) throw new Error("VERSION_MISMATCH");
+
+    if (action.type === "TURN_PASS") {
+      const nextPlayer = getNextPlayer(participants, botUid);
+      tx.update(roomRef, {
+        "game.version": game.version + 1,
+        "game.turnNumber": game.turnNumber + 1,
+        "game.currentUid": nextPlayer.uid,
+        "game.currentSeat": nextPlayer.seat,
+        "game.turnStartedAt": serverTimestamp(),
+        "game.lastAction": { uid: botUid, type: "TURN_PASS", at: serverTimestamp() },
+        updatedAt: serverTimestamp(),
+      });
+      return;
+    }
+
+    const newChipsByCell: Record<string, TeamId> = { ...game.chipsByCell };
+
+    if (action.type === "TURN_PLAY_NORMAL" || action.type === "TURN_PLAY_JACK_WILD") {
+      const { targetCellId } = action;
+      if (newChipsByCell[String(targetCellId)]) throw new Error("해당 칸은 이미 점유되어 있습니다.");
+      if (action.type === "TURN_PLAY_JACK_WILD") {
+        const locked = game.oneEyeLockedCell;
+        if (locked !== undefined && locked !== null && locked === targetCellId) {
+          throw new Error("이전 턴에서 One-eyed Jack으로 제거된 칸에는 바로 다음 턴에 Two-eyed Jack을 사용할 수 없습니다.");
+        }
+      }
+      newChipsByCell[String(targetCellId)] = botParticipant.teamId;
+    } else if (action.type === "TURN_PLAY_JACK_REMOVE") {
+      const { removeCellId } = action;
+      const cellChip = newChipsByCell[String(removeCellId)];
+      if (!cellChip) throw new Error("해당 칸에 칩이 없습니다.");
+      const sequenceCells = new Set(game.completedSequences.flatMap((s) => s.cells));
+      if (sequenceCells.has(removeCellId)) throw new Error("완성된 시퀀스의 칩은 제거할 수 없습니다.");
+      const twoEyeLocked = game.twoEyeLockedCell;
+      if (twoEyeLocked !== undefined && twoEyeLocked !== null && twoEyeLocked === removeCellId) {
+        throw new Error("이전 턴에서 Two-eyed Jack으로 배치된 칸은 바로 다음 턴에 One-eyed Jack으로 제거할 수 없습니다.");
+      }
+      delete newChipsByCell[String(removeCellId)];
+    }
+
+    const existingSeqs = game.completedSequences.map((s) => ({
+      teamId: s.teamId,
+      cells: s.cells,
+      createdTurn: s.createdTurn,
+    }));
+    const newSeqs = detectNewSequences(newChipsByCell, existingSeqs);
+    const allSeqs = [
+      ...existingSeqs,
+      ...newSeqs.map((s) => ({ ...s, createdTurn: game.turnNumber })),
+    ];
+
+    const scoreByTeam: Record<TeamId, number> = { A: 0, B: 0 };
+    for (const s of allSeqs) {
+      scoreByTeam[s.teamId] = (scoreByTeam[s.teamId] ?? 0) + 1;
+    }
+
+    const winnerTeam = scoreByTeam.A >= 2 ? "A" : scoreByTeam.B >= 2 ? "B" : null;
+    const isEnded = winnerTeam !== null;
+
+    const nextPlayer = getNextPlayer(participants, botUid);
+
+    const newDiscardTopBySeat: Record<string, string | null> = {
+      ...game.discardTopBySeat,
+      [String(botParticipant.seat)]: action.cardId,
+    };
+
+    const oneEyeLockedCell =
+      action.type === "TURN_PLAY_JACK_REMOVE" ? action.removeCellId : null;
+    const twoEyeLockedCell =
+      action.type === "TURN_PLAY_JACK_WILD" ? action.targetCellId : null;
+
+    const currentDrawLeft = game.deckMeta?.drawLeft ?? 0;
+    const newDeckMeta = {
+      drawLeft: Math.max(0, currentDrawLeft - 1),
+      reshuffles: game.deckMeta?.reshuffles ?? 0,
+    };
+
+    const gameUpdate = {
+      "game.version": game.version + 1,
+      "game.phase": isEnded ? "ended" : "playing",
+      "game.turnNumber": game.turnNumber + 1,
+      "game.currentUid": nextPlayer.uid,
+      "game.currentSeat": nextPlayer.seat,
+      "game.turnStartedAt": serverTimestamp(),
+      "game.chipsByCell": newChipsByCell,
+      "game.completedSequences": allSeqs,
+      "game.discardTopBySeat": newDiscardTopBySeat,
+      "game.scoreByTeam": scoreByTeam,
+      "game.deckMeta": newDeckMeta,
+      "game.oneEyeLockedCell": oneEyeLockedCell ?? null,
+      "game.twoEyeLockedCell": twoEyeLockedCell ?? null,
+      "game.lastAction": { uid: botUid, type: action.type, at: serverTimestamp() },
+      ...(winnerTeam
+        ? { "game.winner": { teamId: winnerTeam, atTurn: game.turnNumber } }
+        : {}),
+      status: isEnded ? "ended" : "playing",
+      updatedAt: serverTimestamp(),
+    };
+
+    tx.update(roomRef, gameUpdate);
+  });
+
+  // 게임 종료 후 준비 초기화
+  const roomAfter = await getDoc(roomRef);
+  if (roomAfter.data()?.status === "ended") {
+    const playersSnap = await getDocs(collection(db, "rooms", roomId, "players"));
+    const batch = writeBatch(db);
+    for (const d of playersSnap.docs) {
+      const data = d.data() as import("@/features/room/types").RoomPlayerDoc;
+      if (data.role === "participant") {
+        batch.update(d.ref, { ready: false, readyAt: null });
+      }
+    }
+    if (playersSnap.docs.length > 0) await batch.commit();
+  }
+
+  if (action.type === "TURN_PASS") return;
+
+  // ── Phase 2: 봇 손패 + 덱 업데이트 ─────────────────────────────────
+  try {
+    await runTransaction(db, async (tx) => {
+      const deckSnap = await tx.get(deckRef);
+      const handSnap = await tx.get(handRef);
+
+      if (!deckSnap.exists() || !handSnap.exists()) return;
+
+      const deck = deckSnap.data() as import("./types").PrivateDealerDoc;
+      const hand = handSnap.data() as import("./types").PrivateHandDoc;
+
+      const newCardIds = [...hand.cardIds];
+      const removeIdx = newCardIds.indexOf(action.cardId);
+      if (removeIdx !== -1) newCardIds.splice(removeIdx, 1);
+
+      const newDrawPile = [...deck.drawPile];
+      const drawnCard = newDrawPile.shift();
+      if (drawnCard) newCardIds.push(drawnCard);
+
+      tx.update(deckRef, { drawPile: newDrawPile, deckVersion: deck.deckVersion + 1 });
+      tx.update(handRef, {
+        cardIds: newCardIds,
+        handVersion: hand.handVersion + 1,
+        updatedAt: serverTimestamp(),
+      });
+    });
+  } catch {
+    console.warn("[submitBotTurnAction] 봇 손패/덱 업데이트 실패. 재시도 필요.");
+  }
+}
+
+/**
+ * 봇의 현재 손패를 Firestore에서 읽어온다.
+ * 호스트 클라이언트에서 봇 턴 결정 시 사용한다.
+ * 보안 규칙: 호스트가 privateHands/{botUid} 읽기 허용 필요.
+ */
+export async function getBotHand(
+  roomId: string,
+  botUid: string,
+): Promise<string[]> {
+  const db = getFirestoreDb();
+  const handRef = doc(db, "rooms", roomId, "privateHands", botUid);
+  const snap = await getDoc(handRef);
+  if (!snap.exists()) return [];
+  return (snap.data() as import("./types").PrivateHandDoc).cardIds ?? [];
+}
+
+/**
  * 본인 손패(privateHands/{uid})를 실시간 구독.
  * Firestore 보안 규칙: uid만 read 가능.
  */

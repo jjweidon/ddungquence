@@ -13,7 +13,10 @@ import {
   getRoom,
   leaveRoom,
   switchToSpectator,
+  addBot,
+  removeBot,
 } from "@/features/room/roomApi";
+import { nextBotName } from "@/domain/bot/botDecision";
 import { sortParticipantsRedBlue } from "@/shared/lib/players";
 import { startGame } from "@/features/game/gameApi";
 import type { RoomPlayerDoc, TeamId } from "@/features/room/types";
@@ -133,15 +136,19 @@ function RoomHeader({
   );
 }
 
-// ─── PlayerSection: 참여자 리스트 (칩 + 닉네임 + HOST/ME + READY) ─
+// ─── PlayerSection: 참여자 리스트 (칩 + 닉네임 + HOST/ME/BOT + READY) ─
 function PlayerSection({
   players,
   hostUid,
   myUid,
+  isHost,
+  onRemoveBot,
 }: {
   players: RoomPlayerDoc[];
   hostUid: string | null;
   myUid: string | null;
+  isHost: boolean;
+  onRemoveBot: (botUid: string) => void;
 }) {
   const participants = sortParticipantsRedBlue(players);
   return (
@@ -160,12 +167,17 @@ function PlayerSection({
               {p.nickname}
             </span>
             <div className="flex items-center gap-1.5 shrink-0">
-              {p.uid === hostUid && (
+              {p.isBot && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-dq-blue/20 text-dq-blueLight border border-dq-blue/30">
+                  BOT
+                </span>
+              )}
+              {p.uid === hostUid && !p.isBot && (
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-dq-red/20 text-dq-redLight border border-dq-red/30">
                   HOST
                 </span>
               )}
-              {p.uid === myUid && (
+              {p.uid === myUid && !p.isBot && (
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/15 text-dq-white border border-white/20">
                   ME
                 </span>
@@ -178,6 +190,16 @@ function PlayerSection({
                 <span className="px-2 py-0.5 rounded-full text-[10px] text-dq-white/50">
                   대기
                 </span>
+              )}
+              {isHost && p.isBot && (
+                <button
+                  type="button"
+                  onClick={() => onRemoveBot(p.uid)}
+                  aria-label={`${p.nickname} 봇 제거`}
+                  className="ml-1 size-6 flex items-center justify-center rounded-full bg-dq-black border border-white/15 text-dq-white/60 hover:bg-dq-redDark hover:text-dq-white hover:border-dq-red/40 transition-colors text-sm leading-none"
+                >
+                  ×
+                </button>
               )}
             </div>
           </li>
@@ -236,10 +258,12 @@ function ActionBar({
   onStartGame,
   onSpectatorJoin,
   onSwitchToSpectator,
+  onAddBot,
   readyPending,
   joinPending,
   spectatorPending,
   startPending,
+  addBotPending,
 }: {
   me: RoomPlayerDoc | undefined;
   isHost: boolean;
@@ -250,10 +274,12 @@ function ActionBar({
   onStartGame: () => void;
   onSpectatorJoin: () => void;
   onSwitchToSpectator: () => void;
+  onAddBot: () => void;
   readyPending: boolean;
   joinPending: boolean;
   spectatorPending: boolean;
   startPending: boolean;
+  addBotPending: boolean;
 }) {
   const redCount = participants.filter((p) => p.teamId === "A").length;
   const blueCount = participants.filter((p) => p.teamId === "B").length;
@@ -315,14 +341,24 @@ function ActionBar({
               </button>
             </div>
             {isHost && (
-              <button
-                type="button"
-                onClick={onStartGame}
-                disabled={!allReady || startPending}
-                className="w-full min-h-[48px] py-2.5 rounded-xl text-sm font-bold bg-dq-red text-dq-white hover:bg-dq-redLight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dq-redLight disabled:opacity-50"
-              >
-                {startPending ? "시작 중…" : "게임 시작"}
-              </button>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={onAddBot}
+                  disabled={addBotPending || participantFull}
+                  className="min-w-0 flex-[1] min-h-[48px] py-2.5 rounded-xl text-sm font-medium bg-dq-black border border-white/10 text-dq-white/80 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dq-redLight disabled:opacity-50"
+                >
+                  {addBotPending ? "추가 중…" : "+ 봇 추가"}
+                </button>
+                <button
+                  type="button"
+                  onClick={onStartGame}
+                  disabled={!allReady || startPending}
+                  className="min-w-0 flex-[3] min-h-[48px] py-2.5 rounded-xl text-sm font-bold bg-dq-red text-dq-white hover:bg-dq-redLight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dq-redLight disabled:opacity-50"
+                >
+                  {startPending ? "시작 중…" : "게임 시작"}
+                </button>
+              </div>
             )}
           </>
         )}
@@ -562,6 +598,35 @@ export default function LobbyPage() {
     }
   };
 
+  const [addBotPending, setAddBotPending] = useState(false);
+
+  const handleAddBot = async () => {
+    if (!roomId || !isHost || addBotPending) return;
+    setError(null);
+    setAddBotPending(true);
+    try {
+      const existingBots = participants
+        .filter((p) => p.isBot)
+        .map((p) => p.nickname);
+      const botName = nextBotName(existingBots);
+      await addBot(roomId, botName);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setAddBotPending(false);
+    }
+  };
+
+  const handleRemoveBot = async (botUid: string) => {
+    if (!roomId || !isHost) return;
+    setError(null);
+    try {
+      await removeBot(roomId, botUid);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
+
   const [leavePending, setLeavePending] = useState(false);
   const handleLeaveRoom = async () => {
     if (!roomId || !uid || leavePending) return;
@@ -648,6 +713,8 @@ export default function LobbyPage() {
           players={players}
           hostUid={hostUid}
           myUid={uid}
+          isHost={isHost}
+          onRemoveBot={handleRemoveBot}
         />
         <SpectatorSection players={players} myUid={uid} />
 
@@ -672,10 +739,12 @@ export default function LobbyPage() {
           onStartGame={handleStartGame}
           onSpectatorJoin={handleSpectatorJoin}
           onSwitchToSpectator={handleSwitchToSpectator}
+          onAddBot={handleAddBot}
           readyPending={readyPending}
           joinPending={joinPending}
           spectatorPending={spectatorPending}
           startPending={startPending}
+          addBotPending={addBotPending}
         />
       )}
     </main>
