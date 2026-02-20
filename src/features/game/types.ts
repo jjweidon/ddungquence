@@ -20,6 +20,10 @@ export type GameAction =
       expectedVersion: number;
       cardId: string;
       removeCellId: number;
+    }
+  | {
+      type: "TURN_PASS";
+      expectedVersion: number;
     };
 
 // ─── 완성된 시퀀스 ────────────────────────────────────────────────

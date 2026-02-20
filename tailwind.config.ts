@@ -61,6 +61,11 @@ export default {
           "15%": { transform: "scale(1.12)", opacity: "0.9" },
           "100%": { transform: "scale(0.1)", opacity: "0" },
         },
+        // 턴 타이머 임박: 빨간색 강조 펄스
+        "timer-warning": {
+          "0%, 100%": { opacity: "1", transform: "scale(1)" },
+          "50%": { opacity: "0.85", transform: "scale(1.05)" },
+        },
       },
       animation: {
         "dq-slide-slow": "dq-slide 60s linear infinite",
@@ -69,6 +74,7 @@ export default {
         "chip-place": "chip-place 0.42s cubic-bezier(0.34,1.56,0.64,1) forwards",
         "chip-place-wild": "chip-place-wild 0.55s cubic-bezier(0.34,1.56,0.64,1) forwards",
         "chip-remove": "chip-remove 1s ease-in forwards",
+        "timer-warning": "timer-warning 0.8s ease-in-out infinite",
       },
     },
   },

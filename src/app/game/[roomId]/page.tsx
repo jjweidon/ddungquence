@@ -7,8 +7,8 @@ import { subscribeToRoom } from "@/features/room/roomApi";
 import { subscribeToHand, submitTurnAction } from "@/features/game/gameApi";
 import { cardImageUrl, cardAltText } from "@/shared/lib/cardImage";
 import { sortParticipantsRedBlue } from "@/shared/lib/players";
-import { isDeadCard } from "@/domain/rules/deadCard";
-import { isTwoEyedJack, isOneEyedJack } from "@/domain/rules/jacks";
+import { isDeadCard, getPlayableCells } from "@/domain/rules/deadCard";
+import { isTwoEyedJack, isOneEyedJack, isJack } from "@/domain/rules/jacks";
 import { getHighlightForCard } from "@/domain/rules/highlight";
 import boardLayout from "@/domain/board/board-layout.v1.json";
 import type { RoomDoc, RoomPlayerDoc, PublicGameState, TeamId } from "@/features/room/types";
@@ -18,9 +18,14 @@ import { getFirestoreDb } from "@/lib/firebase/client";
 
 const BOARD_LAYOUT = boardLayout as string[];
 
-/** 손패 카드 픽셀 크기 — 셀·버튼·이미지 동일 적용해 테두리 정렬 */
-const HAND_CARD_WIDTH = 48;
-const HAND_CARD_HEIGHT = 69;
+/** 턴 제한 시간(초) */
+const TURN_SECONDS = 30;
+/** 임박 경고 시작 초(이하일 때 빨간색 + 애니메이션) */
+const TURN_WARNING_AT = 5;
+
+/** 손패 카드 픽셀 크기 — 모바일(작게) / 데스크톱(원래 크기). 셀·버튼·이미지 동일 적용 */
+const HAND_CARD_MOBILE = { width: 48, height: 69 };
+const HAND_CARD_DESKTOP = { width: 72, height: 104 };
 
 /** 보드 셀용 SVG 이미지 경로 — 벡터라 어떤 셀 크기에도 잘림 없음 */
 function boardCardImageUrl(cardId: string): string {
@@ -356,15 +361,15 @@ function CardTile({
   selected,
   isDead,
   onClick,
-  width = HAND_CARD_WIDTH,
-  height = HAND_CARD_HEIGHT,
+  width,
+  height,
 }: {
   cardId: string;
   selected: boolean;
   isDead?: boolean;
   onClick?: () => void;
-  width?: number;
-  height?: number;
+  width: number;
+  height: number;
 }) {
   return (
     <button
@@ -601,10 +606,11 @@ function HandSection({
   onSelectCard: (cardId: string) => void;
   layout: "mobile" | "desktop";
 }) {
+  const cardSize = layout === "desktop" ? HAND_CARD_DESKTOP : HAND_CARD_MOBILE;
   const gridStyle =
     layout === "desktop"
-      ? { gridTemplateColumns: `repeat(3, ${HAND_CARD_WIDTH}px)`, gridAutoRows: `${HAND_CARD_HEIGHT}px`, gap: 8 }
-      : { gridTemplateColumns: `repeat(6, ${HAND_CARD_WIDTH}px)`, gridAutoRows: `${HAND_CARD_HEIGHT}px`, gap: 4 };
+      ? { gridTemplateColumns: `repeat(3, ${cardSize.width}px)`, gridAutoRows: `${cardSize.height}px`, gap: 8 }
+      : { gridTemplateColumns: `repeat(6, ${cardSize.width}px)`, gridAutoRows: `${cardSize.height}px`, gap: 4 };
 
   return (
     <div className={`flex flex-col ${layout === "desktop" ? "gap-2 px-2" : "gap-1"}`}>
@@ -633,6 +639,8 @@ function HandSection({
                 if (isDeadCard(cardId, game?.chipsByCell ?? {})) return;
                 onSelectCard(cardId);
               }}
+              width={cardSize.width}
+              height={cardSize.height}
             />
           ))}
         </div>
@@ -828,9 +836,19 @@ export default function GamePage() {
   const prevSeqCountRef = useRef<number>(0);
   const prevPhaseRef = useRef<string>("setup");
   const hasInitializedSeqRef = useRef(false);
+  /** 내 턴이 시작된 시점(ms). 턴/currentUid 변경 시에만 갱신 */
+  const turnStartedAtRef = useRef<number | null>(null);
+  /** 턴 키: 턴이 바뀌었는지 판별용 */
+  const lastTurnKeyRef = useRef<string>("");
+  /** 시간 초과 자동 플레이 1회만 실행 방지 */
+  const timeoutAutoPlayDoneRef = useRef(false);
+  /** 시간 초과 시 호출할 자동 플레이 함수(ref로 interval에서 안전하게 호출) */
+  const runTimeoutAutoPlayRef = useRef<(() => void) | null>(null);
 
   const [sequencePopup, setSequencePopup] = useState<TeamId | null>(null);
   const [showResultOverlay, setShowResultOverlay] = useState(false);
+  /** 남은 턴 시간(초). 내 턴일 때만 갱신, 0이 되면 자동 플레이 */
+  const [turnSecondsLeft, setTurnSecondsLeft] = useState<number | null>(null);
 
   // roomId 변경 시 시퀀스 팝업 초기화 플래그 리셋 (다른 방 진입 시 새 게임으로 처리)
   useEffect(() => {
@@ -883,6 +901,48 @@ export default function GamePage() {
   const game = room?.game;
   const isMyTurn = !!uid && game?.currentUid === uid;
   const me = players.find((p) => p.uid === uid);
+
+  // ── 턴 시작 시점 기록 (내 턴으로 바뀔 때만) ─────────────────────
+  useEffect(() => {
+    if (!game || game.phase !== "playing") {
+      setTurnSecondsLeft(null);
+      return;
+    }
+    const turnKey = `${game.turnNumber}-${game.currentUid}`;
+    if (isMyTurn) {
+      if (lastTurnKeyRef.current !== turnKey) {
+        lastTurnKeyRef.current = turnKey;
+        turnStartedAtRef.current = Date.now();
+        timeoutAutoPlayDoneRef.current = false;
+      }
+    } else {
+      setTurnSecondsLeft(null);
+      lastTurnKeyRef.current = turnKey;
+    }
+  }, [game?.turnNumber, game?.currentUid, game?.phase, isMyTurn]);
+
+  // ── 1초마다 남은 시간 갱신 + 0이면 자동 플레이 ───────────────────
+  useEffect(() => {
+    if (!isMyTurn || game?.phase !== "playing") return;
+
+    const tick = () => {
+      const started = turnStartedAtRef.current;
+      if (started == null) return;
+      const elapsed = (Date.now() - started) / 1000;
+      const left = Math.max(0, Math.ceil(TURN_SECONDS - elapsed));
+      setTurnSecondsLeft(left);
+
+      if (left <= 0 && !timeoutAutoPlayDoneRef.current) {
+        timeoutAutoPlayDoneRef.current = true;
+        // 자동 플레이는 handleTurnTimeout에서 수행 (아래 useCallback이 ref로 호출)
+        runTimeoutAutoPlayRef.current?.();
+      }
+    };
+
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [isMyTurn, game?.phase]);
 
   // 시퀀스 완성 팝업 + 결과창 타이밍 (칩 놓음 → 1초 뒤 시퀀스 팝업 → 2초 후 팝업 사라짐 / 게임 종료 시 2초 후 결과창)
   useEffect(() => {
@@ -939,6 +999,58 @@ export default function GamePage() {
     .map((p) => ({ uid: p.uid, seat: p.seat ?? 0, teamId: (p.teamId ?? "A") as TeamId }));
 
   const gameEnded = game?.phase === "ended";
+
+  /** 시간 초과 시 자동 플레이: 잭 제외 → 가능한 일반 카드 중 하나로 빈 칸 배치, 불가 시 패스 */
+  const handleTurnTimeout = useCallback(async () => {
+    if (!game || !hand || !me || gameEnded || txPending) return;
+    const chipsByCell = game.chipsByCell ?? {};
+    const cardIds = hand.cardIds ?? [];
+
+    const nonJackCards = cardIds.filter((id) => !isJack(id));
+    const playableCards = nonJackCards.filter((id) => !isDeadCard(id, chipsByCell));
+
+    let action: GameAction;
+    if (playableCards.length === 0) {
+      action = { type: "TURN_PASS", expectedVersion: game.version };
+    } else {
+      const cardId = playableCards[0];
+      const cells = getPlayableCells(cardId, chipsByCell);
+      const targetCellId = cells.length > 0 ? cells[0] : 0; // 방어 코드: 셀 없으면 사용하지 않음(아래에서 패스로 떨어지지 않음)
+      if (cells.length === 0) {
+        action = { type: "TURN_PASS", expectedVersion: game.version };
+      } else {
+        action = {
+          type: "TURN_PLAY_NORMAL",
+          expectedVersion: game.version,
+          cardId,
+          targetCellId,
+        };
+      }
+    }
+
+    setSelectedCard(null);
+    setTxError(null);
+    setTxPending(true);
+    try {
+      await submitTurnAction(roomId, action, participants);
+    } catch (err) {
+      const msg = (err as Error).message ?? "알 수 없는 오류";
+      if (msg === "VERSION_MISMATCH") {
+        setTxError("시간 초과 처리 중 상태가 바뀌었습니다. 다시 선택해 주세요.");
+      } else {
+        setTxError(msg);
+      }
+    } finally {
+      setTxPending(false);
+    }
+  }, [game, hand, me, gameEnded, txPending, roomId, participants]);
+
+  useEffect(() => {
+    runTimeoutAutoPlayRef.current = handleTurnTimeout;
+    return () => {
+      runTimeoutAutoPlayRef.current = null;
+    };
+  }, [handleTurnTimeout]);
 
   const handleSelectCard = useCallback(
     (cardId: string) => {
@@ -1040,9 +1152,24 @@ export default function GamePage() {
                 {game?.turnNumber ?? "-"}
               </span>
               {isMyTurn && (
-                <span className="px-1.5 py-0.5 lg:px-2 lg:py-0.5 rounded-full text-[9px] lg:text-[10px] font-bold bg-amber-400/20 text-amber-400 border border-amber-400/30">
-                  내 차례
-                </span>
+                <>
+                  <span className="px-1.5 py-0.5 lg:px-2 lg:py-0.5 rounded-full text-[9px] lg:text-[10px] font-bold bg-amber-400/20 text-amber-400 border border-amber-400/30">
+                    내 차례
+                  </span>
+                  {turnSecondsLeft !== null && (
+                    <span
+                      className={[
+                        "font-mono font-bold text-xs lg:text-sm tabular-nums",
+                        turnSecondsLeft <= TURN_WARNING_AT
+                          ? "text-dq-redLight animate-timer-warning"
+                          : "text-dq-white/90",
+                      ].join(" ")}
+                      aria-label={`남은 시간 ${turnSecondsLeft}초`}
+                    >
+                      {turnSecondsLeft}초
+                    </span>
+                  )}
+                </>
               )}
             </>
           )}

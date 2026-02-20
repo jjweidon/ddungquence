@@ -191,6 +191,20 @@ export async function submitTurnAction(
       throw new Error("VERSION_MISMATCH");
     }
 
+    // 턴 패스(시간 초과 등): 카드 사용·드로우 없이 다음 플레이어로만 넘김
+    if (action.type === "TURN_PASS") {
+      const nextPlayer = getNextPlayer(participants, uid);
+      tx.update(roomRef, {
+        "game.version": game.version + 1,
+        "game.turnNumber": game.turnNumber + 1,
+        "game.currentUid": nextPlayer.uid,
+        "game.currentSeat": nextPlayer.seat,
+        "game.lastAction": { uid, type: "TURN_PASS", at: serverTimestamp() },
+        updatedAt: serverTimestamp(),
+      });
+      return;
+    }
+
     const newChipsByCell: Record<string, TeamId> = { ...game.chipsByCell };
 
     if (action.type === "TURN_PLAY_NORMAL" || action.type === "TURN_PLAY_JACK_WILD") {
@@ -236,7 +250,7 @@ export async function submitTurnAction(
     // 다음 플레이어 (레드-블루 인터리브 순서)
     const nextPlayer = getNextPlayer(participants, uid);
 
-    // discardTopBySeat 업데이트
+    // discardTopBySeat 업데이트 (TURN_PASS는 위에서 return됨)
     const newDiscardTopBySeat: Record<string, string | null> = {
       ...game.discardTopBySeat,
       [String(me.seat)]: action.cardId,
@@ -277,7 +291,9 @@ export async function submitTurnAction(
     tx.update(roomRef, gameUpdate);
   });
 
-  // ── Phase 2: 손패 + 덱 트랜잭션 ────────────────────────────────────
+  // ── Phase 2: 손패 + 덱 트랜잭션 (TURN_PASS는 카드 사용/드로우 없음) ───
+  if (action.type === "TURN_PASS") return;
+
   try {
     await runTransaction(db, async (tx) => {
       const deckSnap = await tx.get(deckRef);
