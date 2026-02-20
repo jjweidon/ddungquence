@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useState, useRef, useCallback, memo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ensureAnonAuth } from "@/features/auth/ensureAnonAuth";
-import { subscribeToRoom } from "@/features/room/roomApi";
+import { subscribeToRoom, returnToLobby } from "@/features/room/roomApi";
 import { subscribeToHand, submitTurnAction } from "@/features/game/gameApi";
 import { cardImageUrl, cardAltText } from "@/shared/lib/cardImage";
 import { sortParticipantsRedBlue } from "@/shared/lib/players";
@@ -800,7 +800,7 @@ function EndedOverlay({
             onClick={onGoHome}
             className="w-full h-12 rounded-xl bg-dq-red text-dq-white font-bold hover:bg-dq-redLight transition-colors"
           >
-            홈으로
+            로비로
           </button>
           <button
             type="button"
@@ -836,8 +836,6 @@ export default function GamePage() {
   const prevSeqCountRef = useRef<number>(0);
   const prevPhaseRef = useRef<string>("setup");
   const hasInitializedSeqRef = useRef(false);
-  /** 내 턴이 시작된 시점(ms). 턴/currentUid 변경 시에만 갱신 */
-  const turnStartedAtRef = useRef<number | null>(null);
   /** 턴 키: 턴이 바뀌었는지 판별용 */
   const lastTurnKeyRef = useRef<string>("");
   /** 시간 초과 자동 플레이 1회만 실행 방지 */
@@ -862,6 +860,18 @@ export default function GamePage() {
     list.sort((a, b) => (a.seat ?? 0) - (b.seat ?? 0));
     setPlayers(list);
   }, []);
+
+  /** 게임 종료 후 로비 재입장: 참여자 준비 상태·입장 순서 초기화 후 이동 */
+  const handleGoToLobby = useCallback(async () => {
+    const code = room?.roomCode;
+    if (!code) { router.push("/"); return; }
+    try {
+      await returnToLobby(roomId);
+    } catch {
+      // 실패해도 이동 (로비에서 상태 불일치는 허용)
+    }
+    router.push(`/lobby/${code}`);
+  }, [room, roomId, router]);
 
   useEffect(() => {
     if (!roomId) return;
@@ -902,39 +912,36 @@ export default function GamePage() {
   const isMyTurn = !!uid && game?.currentUid === uid;
   const me = players.find((p) => p.uid === uid);
 
-  // ── 턴 시작 시점 기록 (내 턴으로 바뀔 때만) ─────────────────────
+  // ── 턴 키 동기화 (타이머는 모든 플레이어에게 표시, 자동 플레이만 내 턴일 때) ─────────────────────
   useEffect(() => {
     if (!game || game.phase !== "playing") {
       setTurnSecondsLeft(null);
       return;
     }
     const turnKey = `${game.turnNumber}-${game.currentUid}`;
-    if (isMyTurn) {
-      if (lastTurnKeyRef.current !== turnKey) {
-        lastTurnKeyRef.current = turnKey;
-        turnStartedAtRef.current = Date.now();
-        timeoutAutoPlayDoneRef.current = false;
-      }
-    } else {
-      setTurnSecondsLeft(null);
+    if (isMyTurn && lastTurnKeyRef.current !== turnKey) {
+      lastTurnKeyRef.current = turnKey;
+      timeoutAutoPlayDoneRef.current = false;
+    } else if (!isMyTurn) {
       lastTurnKeyRef.current = turnKey;
     }
   }, [game?.turnNumber, game?.currentUid, game?.phase, isMyTurn]);
 
-  // ── 1초마다 남은 시간 갱신 + 0이면 자동 플레이 ───────────────────
+  // ── 1초마다 남은 시간 갱신 (전원 표시) + 내 턴일 때만 0이면 자동 플레이 ───────────────────
   useEffect(() => {
-    if (!isMyTurn || game?.phase !== "playing") return;
+    if (game?.phase !== "playing") return;
 
     const tick = () => {
-      const started = turnStartedAtRef.current;
-      if (started == null) return;
-      const elapsed = (Date.now() - started) / 1000;
+      const startMs =
+        game?.turnStartedAt?.toMillis?.() ??
+        game?.lastAction?.at?.toMillis?.() ??
+        Date.now();
+      const elapsed = (Date.now() - startMs) / 1000;
       const left = Math.max(0, Math.ceil(TURN_SECONDS - elapsed));
       setTurnSecondsLeft(left);
 
-      if (left <= 0 && !timeoutAutoPlayDoneRef.current) {
+      if (isMyTurn && left <= 0 && !timeoutAutoPlayDoneRef.current) {
         timeoutAutoPlayDoneRef.current = true;
-        // 자동 플레이는 handleTurnTimeout에서 수행 (아래 useCallback이 ref로 호출)
         runTimeoutAutoPlayRef.current?.();
       }
     };
@@ -942,7 +949,14 @@ export default function GamePage() {
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [isMyTurn, game?.phase]);
+  }, [
+    isMyTurn,
+    game?.phase,
+    game?.turnNumber,
+    game?.currentUid,
+    game?.turnStartedAt,
+    game?.lastAction?.at,
+  ]);
 
   // 시퀀스 완성 팝업 + 결과창 타이밍 (칩 놓음 → 1초 뒤 시퀀스 팝업 → 2초 후 팝업 사라짐 / 게임 종료 시 2초 후 결과창)
   useEffect(() => {
@@ -1129,7 +1143,7 @@ export default function GamePage() {
         <EndedOverlay
           game={game}
           myTeamId={me?.teamId}
-          onGoHome={() => router.push("/")}
+          onGoHome={handleGoToLobby}
           onClose={() => setShowResultOverlay(false)}
         />
       )}
@@ -1140,10 +1154,10 @@ export default function GamePage() {
           {gameEnded ? (
             <button
               type="button"
-              onClick={() => router.push("/")}
+              onClick={handleGoToLobby}
               className="px-2.5 py-1 lg:px-3 lg:py-1.5 rounded-lg lg:rounded-xl text-xs lg:text-sm font-bold bg-white/10 text-dq-white border border-white/20 hover:bg-white/20 transition-colors"
             >
-              나가기
+              로비로
             </button>
           ) : (
             <>
@@ -1152,24 +1166,22 @@ export default function GamePage() {
                 {game?.turnNumber ?? "-"}
               </span>
               {isMyTurn && (
-                <>
-                  <span className="px-1.5 py-0.5 lg:px-2 lg:py-0.5 rounded-full text-[9px] lg:text-[10px] font-bold bg-amber-400/20 text-amber-400 border border-amber-400/30">
-                    내 차례
-                  </span>
-                  {turnSecondsLeft !== null && (
-                    <span
-                      className={[
-                        "font-mono font-bold text-xs lg:text-sm tabular-nums",
-                        turnSecondsLeft <= TURN_WARNING_AT
-                          ? "text-dq-redLight animate-timer-warning"
-                          : "text-dq-white/90",
-                      ].join(" ")}
-                      aria-label={`남은 시간 ${turnSecondsLeft}초`}
-                    >
-                      {turnSecondsLeft}초
-                    </span>
-                  )}
-                </>
+                <span className="px-1.5 py-0.5 lg:px-2 lg:py-0.5 rounded-full text-[9px] lg:text-[10px] font-bold bg-amber-400/20 text-amber-400 border border-amber-400/30">
+                  내 차례
+                </span>
+              )}
+              {turnSecondsLeft !== null && (
+                <span
+                  className={[
+                    "font-mono font-bold text-xs lg:text-sm tabular-nums",
+                    turnSecondsLeft <= TURN_WARNING_AT
+                      ? "text-dq-redLight animate-timer-warning"
+                      : "text-dq-white/90",
+                  ].join(" ")}
+                  aria-label={`남은 시간 ${turnSecondsLeft}초`}
+                >
+                  {turnSecondsLeft}초
+                </span>
               )}
             </>
           )}

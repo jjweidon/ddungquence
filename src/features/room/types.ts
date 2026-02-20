@@ -44,6 +44,8 @@ export interface PublicGameState {
   oneEyeLockedCell?: number | null;
   winner?: { teamId: TeamId; atTurn: number };
   lastAction?: { uid: string; type: string; at: Timestamp };
+  /** 현재 턴이 시작된 시각(서버 기준). 새로고침 후에도 타이머 유지용 */
+  turnStartedAt?: Timestamp;
 }
 
 export interface RoomDoc {

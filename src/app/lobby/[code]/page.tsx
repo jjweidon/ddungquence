@@ -308,7 +308,7 @@ function ActionBar({
               <button
                 type="button"
                 onClick={onSwitchToSpectator}
-                disabled={spectatorPending}
+                disabled={spectatorPending || me?.ready}
                 className="min-w-0 flex-[1] min-h-[48px] py-2.5 rounded-xl text-sm font-medium bg-dq-black border border-white/10 text-dq-white/80 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dq-redLight disabled:opacity-50"
               >
                 {spectatorPending ? "전환 중…" : "관전하기"}
@@ -359,6 +359,7 @@ export default function LobbyPage() {
   const [roomId, setRoomId] = useState<string | null>(null);
   const [players, setPlayers] = useState<RoomPlayerDoc[]>([]);
   const [hostUid, setHostUid] = useState<string | null>(null);
+  const [roomStatus, setRoomStatus] = useState<"lobby" | "playing" | "ended">("lobby");
   const [status, setStatus] = useState<"loading" | "need-join" | "ready">(
     "loading"
   );
@@ -389,15 +390,17 @@ export default function LobbyPage() {
         return;
       }
       setHostUid(room.hostUid);
+      setRoomStatus(room.status as "lobby" | "playing" | "ended");
       setStatus("ready");
 
       // 플레이어 목록 구독
       unsubRef.current = subscribeToPlayers(rid, setPlayers);
 
-      // 방 상태 구독: status가 "playing"이 되면 모든 클라이언트 game 화면으로 이동
+      // 방 상태 구독: status가 "playing"이 되면 game으로 이동, "ended"면 로비에 재게임 유도
       unsubRoomRef.current = subscribeToRoom(rid, (roomData) => {
         if (!roomData) return;
         setHostUid(roomData.hostUid);
+        setRoomStatus(roomData.status);
         if (roomData.status === "playing") {
           router.push(`/game/${rid}`);
         }

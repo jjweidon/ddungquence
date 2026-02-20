@@ -12,6 +12,7 @@ import {
 } from "firebase/firestore";
 import { getFirestoreDb } from "@/lib/firebase/client";
 import { getFirebaseAuth } from "@/lib/firebase/client";
+import { sortParticipantsRedBlue } from "@/shared/lib/players";
 import type { RoomPlayerDoc, RoomPlayerDocWrite, TeamId } from "./types";
 
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // I,O,0,1 제외
@@ -207,7 +208,7 @@ export async function updatePlayerReady(
 
 /**
  * 로비에서 참여자 → 관전자로 전환합니다.
- * 관전자는 팀 배정에서 제외되며, 자리가 있을 때 다시 참여하기로 참여할 수 있습니다.
+ * 호스트가 관전할 경우, 남은 참여자 중 첫 번째(seat·joinedAt 순)에게 호스트를 넘깁니다.
  */
 export async function switchToSpectator(roomId: string): Promise<void> {
   const db = getFirestoreDb();
@@ -215,8 +216,24 @@ export async function switchToSpectator(roomId: string): Promise<void> {
   const uid = auth.currentUser?.uid;
   if (!uid) throw new Error("로그인이 필요합니다.");
 
-  const playerRef = doc(db, "rooms", roomId, "players", uid);
-  await setDoc(
+  const roomRef = doc(db, "rooms", roomId);
+  const roomSnap = await getDoc(roomRef);
+  if (!roomSnap.exists()) throw new Error("방을 찾을 수 없습니다.");
+
+  const roomData = roomSnap.data();
+  const hostUid = roomData.hostUid as string;
+  const isHost = hostUid === uid;
+
+  const playersRef = collection(db, "rooms", roomId, "players");
+  const playersSnap = await getDocs(playersRef);
+  const participants = playersSnap.docs
+    .map((d) => d.data() as RoomPlayerDoc)
+    .filter((p) => p.role === "participant");
+  const remaining = participants.filter((p) => p.uid !== uid);
+
+  const batch = writeBatch(db);
+  const playerRef = doc(playersRef, uid);
+  batch.set(
     playerRef,
     {
       role: "spectator",
@@ -228,6 +245,15 @@ export async function switchToSpectator(roomId: string): Promise<void> {
     },
     { merge: true }
   );
+
+  if (isHost && remaining.length > 0) {
+    // 로비 표시 순서(레드-블루 인터리브, 팀 내 readyAt→seat)와 동일하게 첫 번째 참여자에게 호스트 이전
+    const sorted = sortParticipantsRedBlue(remaining);
+    const newHostUid = sorted[0].uid;
+    batch.set(roomRef, { hostUid: newHostUid, updatedAt: serverTimestamp() }, { merge: true });
+  }
+
+  await batch.commit();
 }
 
 /**
@@ -308,6 +334,46 @@ export function subscribeToRoom(
 }
 
 /**
+ * 게임 종료 후 로비로 재입장합니다.
+ *
+ * - 참여자: joinedAt을 현재 시각으로 갱신(입장 순서 재설정) + ready/readyAt 초기화
+ * - 관전자: role/status 그대로 유지, lastSeenAt만 갱신
+ *
+ * 게임 페이지의 "로비로" 버튼 클릭 시 navigate 전에 호출합니다.
+ */
+export async function returnToLobby(roomId: string): Promise<void> {
+  const db = getFirestoreDb();
+  const auth = getFirebaseAuth();
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error("로그인이 필요합니다.");
+
+  const playerRef = doc(db, "rooms", roomId, "players", uid);
+  const playerSnap = await getDoc(playerRef);
+  if (!playerSnap.exists()) return;
+
+  const playerData = playerSnap.data() as RoomPlayerDoc;
+  const now = serverTimestamp();
+
+  if (playerData.role === "spectator") {
+    await setDoc(playerRef, { lastSeenAt: now }, { merge: true });
+    return;
+  }
+
+  // 참여자: 입장 시각 갱신(로비 입장 순서) + 준비 상태 초기화
+  await setDoc(playerRef, {
+    uid: playerData.uid,
+    nickname: playerData.nickname,
+    role: "participant",
+    teamId: playerData.teamId,
+    seat: playerData.seat,
+    ready: false,
+    readyAt: null,
+    joinedAt: now,
+    lastSeenAt: now,
+  } satisfies RoomPlayerDocWrite);
+}
+
+/**
  * 게임 시작 전(로비)에만 방을 나갑니다.
  * - 본인 플레이어 문서 삭제
  * - 방장이 나가면: 남은 참여자 중 1명을 새 방장으로 지정. 남은 참여자가 없으면 방·방코드 삭제
@@ -348,15 +414,7 @@ export async function leaveRoom(roomId: string): Promise<void> {
 
   if (isHost) {
     if (remaining.length > 0) {
-      const sorted = [...remaining].sort((a, b) => {
-        const seatA = a.seat ?? 999;
-        const seatB = b.seat ?? 999;
-        if (seatA !== seatB) return seatA - seatB;
-        const tsA = a.joinedAt?.toMillis?.() ?? 0;
-        const tsB = b.joinedAt?.toMillis?.() ?? 0;
-        return tsA - tsB;
-      });
-      const newHostUid = sorted[0].uid;
+      const newHostUid = sortParticipantsRedBlue(remaining)[0].uid;
       batch.set(roomRef, { hostUid: newHostUid, updatedAt: serverTimestamp() }, { merge: true });
     } else {
       batch.delete(roomRef);

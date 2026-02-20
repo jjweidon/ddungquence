@@ -42,7 +42,9 @@ export async function startGame(roomId: string): Promise<void> {
 
   const roomData = roomSnap.data();
   if (roomData.hostUid !== uid) throw new Error("호스트만 게임을 시작할 수 있습니다.");
-  if (roomData.status !== "lobby") throw new Error("이미 게임이 시작됐습니다.");
+  if (roomData.status !== "lobby" && roomData.status !== "ended") {
+    throw new Error("이미 게임이 진행 중입니다.");
+  }
 
   // ── 참여자 목록 조회 ──────────────────────────────────────────
   const playersSnap = await getDocs(collection(db, "rooms", roomId, "players"));
@@ -134,6 +136,7 @@ export async function startGame(roomId: string): Promise<void> {
       discardTopBySeat: initialDiscardBySeat,
       scoreByTeam: { A: 0, B: 0 },
       deckMeta: { drawLeft: drawPile.length, reshuffles: 0 },
+      turnStartedAt: serverTimestamp(),
     },
   });
 
@@ -216,6 +219,7 @@ export async function submitTurnAction(
         "game.turnNumber": game.turnNumber + 1,
         "game.currentUid": nextPlayer.uid,
         "game.currentSeat": nextPlayer.seat,
+        "game.turnStartedAt": serverTimestamp(),
         "game.lastAction": { uid, type: "TURN_PASS", at: serverTimestamp() },
         updatedAt: serverTimestamp(),
       });
@@ -291,6 +295,7 @@ export async function submitTurnAction(
       "game.turnNumber": game.turnNumber + 1,
       "game.currentUid": nextPlayer.uid,
       "game.currentSeat": nextPlayer.seat,
+      "game.turnStartedAt": serverTimestamp(),
       "game.chipsByCell": newChipsByCell,
       "game.completedSequences": allSeqs,
       "game.discardTopBySeat": newDiscardTopBySeat,
@@ -307,6 +312,20 @@ export async function submitTurnAction(
 
     tx.update(roomRef, gameUpdate);
   });
+
+  // 방이 방금 ended가 되었으면 모든 참여자 준비 해제(재게임 시 대기 상태)
+  const roomAfter = await getDoc(roomRef);
+  if (roomAfter.data()?.status === "ended") {
+    const playersSnap = await getDocs(collection(db, "rooms", roomId, "players"));
+    const batch = writeBatch(db);
+    for (const d of playersSnap.docs) {
+      const data = d.data() as RoomPlayerDoc;
+      if (data.role === "participant") {
+        batch.update(d.ref, { ready: false, readyAt: null });
+      }
+    }
+    if (playersSnap.docs.length > 0) await batch.commit();
+  }
 
   // ── Phase 2: 손패 + 덱 트랜잭션 (TURN_PASS는 카드 사용/드로우 없음) ───
   if (action.type === "TURN_PASS") return;
