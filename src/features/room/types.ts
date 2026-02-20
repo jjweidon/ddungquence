@@ -2,7 +2,7 @@ import type { Timestamp } from "firebase/firestore";
 
 export type TeamId = "A" | "B";
 
-/** 서버에서 읽은 후의 플레이어 문서 (joinedAt/lastSeenAt은 Timestamp) */
+/** 서버에서 읽은 후의 플레이어 문서 (joinedAt/lastSeenAt/readyAt은 Timestamp) */
 export interface RoomPlayerDoc {
   uid: string;
   nickname: string;
@@ -10,14 +10,17 @@ export interface RoomPlayerDoc {
   teamId?: TeamId;
   seat?: number;
   ready?: boolean;
+  /** 마지막으로 준비 상태가 된 시점. 게임 순서(팀 내) 정렬 기준 */
+  readyAt?: Timestamp | null;
   joinedAt: Timestamp;
   lastSeenAt: Timestamp;
 }
 
-/** setDoc 시 사용. joinedAt/lastSeenAt에 serverTimestamp() 허용 */
-export type RoomPlayerDocWrite = Omit<RoomPlayerDoc, "joinedAt" | "lastSeenAt"> & {
+/** setDoc 시 사용. joinedAt/lastSeenAt/readyAt에 serverTimestamp() 허용 */
+export type RoomPlayerDocWrite = Omit<RoomPlayerDoc, "joinedAt" | "lastSeenAt" | "readyAt"> & {
   joinedAt: Timestamp | ReturnType<typeof import("firebase/firestore").serverTimestamp>;
   lastSeenAt: Timestamp | ReturnType<typeof import("firebase/firestore").serverTimestamp>;
+  readyAt?: Timestamp | null | ReturnType<typeof import("firebase/firestore").serverTimestamp>;
 };
 
 export interface CompletedSequenceEntry {

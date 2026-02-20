@@ -12,6 +12,7 @@ import {
   updatePlayerTeam,
   getRoom,
   leaveRoom,
+  switchToSpectator,
 } from "@/features/room/roomApi";
 import { sortParticipantsRedBlue } from "@/shared/lib/players";
 import { startGame } from "@/features/game/gameApi";
@@ -211,8 +212,12 @@ function SpectatorSection({
             <span className="inline-flex size-8 shrink-0 rounded-full bg-white/10 border border-white/20" />
             <span className="flex-1 font-medium text-dq-white/80 truncate">
               {p.nickname}
-              {p.uid === myUid && " (나)"}
             </span>
+            {p.uid === myUid && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/15 text-dq-white border border-white/20 shrink-0">
+                ME
+              </span>
+            )}
           </li>
         ))}
       </ul>
@@ -220,30 +225,34 @@ function SpectatorSection({
   );
 }
 
-// ─── ActionBar: 하단 고정 (팀 선택 + 준비 / 게임 시작 / 참여하기) ──
+// ─── ActionBar: 하단 고정 (팀 선택 + 준비 / 게임 시작 / 참여하기 / 관전하기) ──
 function ActionBar({
   me,
   isHost,
   participants,
-  canJoinAsSpectator,
+  canJoinAsParticipant,
   onReadyToggle,
   onTeamSelect,
   onStartGame,
   onSpectatorJoin,
+  onSwitchToSpectator,
   readyPending,
   joinPending,
+  spectatorPending,
   startPending,
 }: {
   me: RoomPlayerDoc | undefined;
   isHost: boolean;
   participants: RoomPlayerDoc[];
-  canJoinAsSpectator: boolean;
+  canJoinAsParticipant: boolean;
   onReadyToggle: () => void;
   onTeamSelect: (t: TeamId) => void;
   onStartGame: () => void;
   onSpectatorJoin: () => void;
+  onSwitchToSpectator: () => void;
   readyPending: boolean;
   joinPending: boolean;
+  spectatorPending: boolean;
   startPending: boolean;
 }) {
   const redCount = participants.filter((p) => p.teamId === "A").length;
@@ -252,6 +261,8 @@ function ActionBar({
   const allReady =
     participants.length >= 2 && teamsBalanced && participants.every((p) => p.ready);
   const isParticipant = me?.role === "participant";
+  const isSpectator = me?.role === "spectator";
+  const participantFull = participants.length >= MAX_PARTICIPANTS;
 
   return (
     <div
@@ -281,18 +292,28 @@ function ActionBar({
                 </button>
               ))}
             </div>
-            <button
-              type="button"
-              onClick={onReadyToggle}
-              disabled={readyPending}
-              className={`w-full min-h-[48px] py-2.5 rounded-xl text-sm font-bold focus-visible:outline-none focus-visible:ring-2 disabled:opacity-50 transition-colors ${
-                me?.ready
-                  ? "bg-white/10 text-dq-white border border-white/20 hover:bg-white/15 focus-visible:ring-white/40"
-                  : "bg-[#39FF14] text-[#0B0B0F] hover:bg-[#57FF33] focus-visible:ring-[#39FF14]"
-              }`}
-            >
-              {me?.ready ? "준비 취소" : "준비"}
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={onReadyToggle}
+                disabled={readyPending}
+                className={`min-w-0 flex-[3] min-h-[48px] py-2.5 rounded-xl text-sm font-bold focus-visible:outline-none focus-visible:ring-2 disabled:opacity-50 transition-colors ${
+                  me?.ready
+                    ? "bg-white/10 text-dq-white border border-white/20 hover:bg-white/15 focus-visible:ring-white/40"
+                    : "bg-[#39FF14] text-[#0B0B0F] hover:bg-[#57FF33] focus-visible:ring-[#39FF14]"
+                }`}
+              >
+                {me?.ready ? "준비 취소" : "준비"}
+              </button>
+              <button
+                type="button"
+                onClick={onSwitchToSpectator}
+                disabled={spectatorPending}
+                className="min-w-0 flex-[1] min-h-[48px] py-2.5 rounded-xl text-sm font-medium bg-dq-black border border-white/10 text-dq-white/80 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dq-redLight disabled:opacity-50"
+              >
+                {spectatorPending ? "전환 중…" : "관전하기"}
+              </button>
+            </div>
             {isHost && (
               <button
                 type="button"
@@ -305,15 +326,24 @@ function ActionBar({
             )}
           </>
         )}
-        {me?.role === "spectator" && canJoinAsSpectator && (
-          <button
-            type="button"
-            onClick={onSpectatorJoin}
-            disabled={joinPending}
-            className="w-full min-h-[48px] py-2.5 rounded-xl text-sm font-bold bg-dq-black border border-white/10 text-dq-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dq-redLight disabled:opacity-50"
-          >
-            {joinPending ? "참여 중…" : "참여하기"}
-          </button>
+        {isSpectator && (
+          <>
+            {participantFull && (
+              <p className="text-dq-white/50 text-xs text-center">
+                참여 인원(4명)이 가득 찼습니다. 자리가 날 때까지 관전만 가능합니다.
+              </p>
+            )}
+            {canJoinAsParticipant && (
+              <button
+                type="button"
+                onClick={onSpectatorJoin}
+                disabled={joinPending}
+                className="w-full min-h-[48px] py-2.5 rounded-xl text-sm font-bold bg-dq-black border border-white/10 text-dq-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dq-redLight disabled:opacity-50"
+              >
+                {joinPending ? "참여 중…" : "참여하기"}
+              </button>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -337,6 +367,7 @@ export default function LobbyPage() {
   const [joinNickname, setJoinNickname] = useState("");
   const [joinPending, setJoinPending] = useState(false);
   const [readyPending, setReadyPending] = useState(false);
+  const [spectatorPending, setSpectatorPending] = useState(false);
   const [startPending, setStartPending] = useState(false);
   const unsubRef = useRef<(() => void) | null>(null);
   const unsubRoomRef = useRef<(() => void) | null>(null);
@@ -515,6 +546,19 @@ export default function LobbyPage() {
     }
   };
 
+  const handleSwitchToSpectator = async () => {
+    if (!roomId || !uid || spectatorPending) return;
+    setError(null);
+    setSpectatorPending(true);
+    try {
+      await switchToSpectator(roomId);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setSpectatorPending(false);
+    }
+  };
+
   const [leavePending, setLeavePending] = useState(false);
   const handleLeaveRoom = async () => {
     if (!roomId || !uid || leavePending) return;
@@ -619,13 +663,15 @@ export default function LobbyPage() {
           me={me}
           isHost={isHost}
           participants={participants}
-          canJoinAsSpectator={canJoinAsParticipant}
+          canJoinAsParticipant={canJoinAsParticipant}
           onReadyToggle={handleReadyToggle}
           onTeamSelect={handleTeamSelect}
           onStartGame={handleStartGame}
           onSpectatorJoin={handleSpectatorJoin}
+          onSwitchToSpectator={handleSwitchToSpectator}
           readyPending={readyPending}
           joinPending={joinPending}
+          spectatorPending={spectatorPending}
           startPending={startPending}
         />
       )}

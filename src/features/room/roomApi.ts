@@ -85,7 +85,8 @@ export async function createRoom(nickname: string): Promise<{
     role: "participant",
     teamId: "A",
     seat: 0,
-    ready: false,
+    ready: true,
+    readyAt: now,
     joinedAt: now,
     lastSeenAt: now,
   } satisfies RoomPlayerDocWrite);
@@ -180,6 +181,7 @@ export async function getRoomIdByCode(code: string): Promise<string | null> {
 
 /**
  * 본인 플레이어 문서의 ready 필드를 업데이트합니다.
+ * ready=true 시 readyAt을 갱신하여 팀 내 순서(준비 시점이 빠른 사람이 앞)에 반영합니다.
  */
 export async function updatePlayerReady(
   roomId: string,
@@ -191,9 +193,39 @@ export async function updatePlayerReady(
   if (!uid) throw new Error("로그인이 필요합니다.");
 
   const playerRef = doc(db, "rooms", roomId, "players", uid);
+  const payload: Record<string, unknown> = {
+    ready,
+    lastSeenAt: serverTimestamp(),
+  };
+  if (ready) {
+    payload.readyAt = serverTimestamp();
+  } else {
+    payload.readyAt = null;
+  }
+  await setDoc(playerRef, payload, { merge: true });
+}
+
+/**
+ * 로비에서 참여자 → 관전자로 전환합니다.
+ * 관전자는 팀 배정에서 제외되며, 자리가 있을 때 다시 참여하기로 참여할 수 있습니다.
+ */
+export async function switchToSpectator(roomId: string): Promise<void> {
+  const db = getFirestoreDb();
+  const auth = getFirebaseAuth();
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error("로그인이 필요합니다.");
+
+  const playerRef = doc(db, "rooms", roomId, "players", uid);
   await setDoc(
     playerRef,
-    { ready, lastSeenAt: serverTimestamp() },
+    {
+      role: "spectator",
+      teamId: null,
+      seat: null,
+      ready: false,
+      readyAt: null,
+      lastSeenAt: serverTimestamp(),
+    },
     { merge: true }
   );
 }

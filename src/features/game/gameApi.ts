@@ -48,22 +48,32 @@ export async function startGame(roomId: string): Promise<void> {
   const playersSnap = await getDocs(collection(db, "rooms", roomId, "players"));
   const participants = playersSnap.docs
     .map((d) => d.data() as RoomPlayerDoc)
-    .filter((p) => p.role === "participant")
-    .sort((a, b) => (a.seat ?? 0) - (b.seat ?? 0));
+    .filter((p) => p.role === "participant");
 
   if (participants.length < 2) throw new Error("최소 2명이 있어야 게임을 시작할 수 있습니다.");
 
-  // 플레이 순서: 레드(A)-블루(B) 인터리브 (UI 표시 순서와 일치)
-  const bySeat = (a: RoomPlayerDoc, b: RoomPlayerDoc) => (a.seat ?? 0) - (b.seat ?? 0);
-  const reds = participants.filter((p) => p.teamId === "A").sort(bySeat);
-  const blues = participants.filter((p) => p.teamId === "B").sort(bySeat);
+  // 플레이 순서: 팀 내 readyAt 기준(가장 최근 준비 시점이 빠른 사람이 앞) → 레드-블루 인터리브
+  const byReadyAtThenSeat = (a: RoomPlayerDoc, b: RoomPlayerDoc) => {
+    const ta = a.readyAt?.toMillis?.() ?? Number.MAX_SAFE_INTEGER;
+    const tb = b.readyAt?.toMillis?.() ?? Number.MAX_SAFE_INTEGER;
+    if (ta !== tb) return ta - tb;
+    return (a.seat ?? 999) - (b.seat ?? 999);
+  };
+  const reds = participants.filter((p) => p.teamId === "A").sort(byReadyAtThenSeat);
+  const blues = participants.filter((p) => p.teamId === "B").sort(byReadyAtThenSeat);
   const orderedParticipants: RoomPlayerDoc[] = [];
   const maxTeam = Math.max(reds.length, blues.length);
   for (let i = 0; i < maxTeam; i++) {
     if (reds[i]) orderedParticipants.push(reds[i]);
     if (blues[i]) orderedParticipants.push(blues[i]);
   }
+  // 게임 순서에 따라 seat 0,1,2,... 재배정
+  const seatByUid: Record<string, number> = {};
+  orderedParticipants.forEach((p, idx) => {
+    seatByUid[p.uid] = idx;
+  });
   const firstPlayer = orderedParticipants[0] ?? participants[0];
+  const firstSeat = seatByUid[firstPlayer.uid] ?? 0;
 
   // ── 덱 생성 및 딜링 ──────────────────────────────────────────
   const drawPile = createShuffledDeck();
@@ -97,10 +107,17 @@ export async function startGame(roomId: string): Promise<void> {
     } as PrivateHandDoc);
   }
 
+  // 각 참여자 seat를 게임 순서대로 갱신
+  const playersRef = collection(db, "rooms", roomId, "players");
+  for (const p of orderedParticipants) {
+    const newSeat = seatByUid[p.uid] ?? 0;
+    batch.update(doc(playersRef, p.uid), { seat: newSeat });
+  }
+
   // rooms/{roomId}: status + game 초기 상태
   const initialDiscardBySeat: Record<string, null> = {};
-  for (const p of participants) {
-    initialDiscardBySeat[String(p.seat ?? 0)] = null;
+  for (const uid of Object.keys(seatByUid)) {
+    initialDiscardBySeat[String(seatByUid[uid])] = null;
   }
 
   batch.update(roomRef, {
@@ -111,7 +128,7 @@ export async function startGame(roomId: string): Promise<void> {
       phase: "playing",
       turnNumber: 1,
       currentUid: firstPlayer.uid,
-      currentSeat: firstPlayer.seat ?? 0,
+      currentSeat: firstSeat,
       chipsByCell: {},
       completedSequences: [],
       discardTopBySeat: initialDiscardBySeat,
