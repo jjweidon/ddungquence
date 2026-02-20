@@ -18,6 +18,10 @@ import { getFirestoreDb } from "@/lib/firebase/client";
 
 const BOARD_LAYOUT = boardLayout as string[];
 
+/** 손패 카드 픽셀 크기 — 셀·버튼·이미지 동일 적용해 테두리 정렬 */
+const HAND_CARD_WIDTH = 48;
+const HAND_CARD_HEIGHT = 69;
+
 /** 보드 셀용 SVG 이미지 경로 — 벡터라 어떤 셀 크기에도 잘림 없음 */
 function boardCardImageUrl(cardId: string): string {
   return `/cards/svg/${cardId}.svg`;
@@ -352,19 +356,24 @@ function CardTile({
   selected,
   isDead,
   onClick,
+  width = HAND_CARD_WIDTH,
+  height = HAND_CARD_HEIGHT,
 }: {
   cardId: string;
   selected: boolean;
   isDead?: boolean;
   onClick?: () => void;
+  width?: number;
+  height?: number;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={isDead}
+      style={{ width, height }}
       className={[
-        "relative w-full rounded-lg overflow-hidden select-none transition-all duration-100",
+        "relative shrink-0 rounded-lg overflow-hidden select-none transition-all duration-100",
         selected
           ? "border border-amber-400 ring-1 ring-amber-400 scale-105 z-10"
           : "border border-white/20 hover:border-white/50",
@@ -377,11 +386,11 @@ function CardTile({
       <img
         src={cardImageUrl(cardId)}
         alt={cardAltText(cardId)}
-        width={56}
-        height={80}
+        width={width}
+        height={height}
         loading="eager"
         decoding="async"
-        className="block w-full h-auto object-cover"
+        className="block w-full h-full object-cover"
         draggable={false}
       />
       {isDead && (
@@ -592,26 +601,28 @@ function HandSection({
   onSelectCard: (cardId: string) => void;
   layout: "mobile" | "desktop";
 }) {
-  const gridClass =
+  const gridStyle =
     layout === "desktop"
-      ? "grid grid-cols-3 gap-2"
-      : "grid grid-cols-6 gap-1";
+      ? { gridTemplateColumns: `repeat(3, ${HAND_CARD_WIDTH}px)`, gridAutoRows: `${HAND_CARD_HEIGHT}px`, gap: 8 }
+      : { gridTemplateColumns: `repeat(6, ${HAND_CARD_WIDTH}px)`, gridAutoRows: `${HAND_CARD_HEIGHT}px`, gap: 4 };
 
   return (
-    <div className={`flex flex-col gap-2 ${layout === "desktop" ? "px-2" : ""}`}>
-      <div className="flex items-center justify-between">
-        <h2 className="text-xs font-bold tracking-widest text-dq-white/50 uppercase">
-          My Card
-        </h2>
-        {me && (
-          <div className="flex items-center gap-1.5">
-            <TeamBadge teamId={me.teamId} />
-            <span className="text-xs text-dq-white/50">{me.nickname}</span>
-          </div>
-        )}
-      </div>
+    <div className={`flex flex-col ${layout === "desktop" ? "gap-2 px-2" : "gap-1"}`}>
+      {layout === "desktop" && (
+        <div className="flex items-center justify-between">
+          <h2 className="text-xs font-bold tracking-widest text-dq-white/50 uppercase">
+            My Card
+          </h2>
+          {me && (
+            <div className="flex items-center gap-1.5">
+              <TeamBadge teamId={me.teamId} />
+              <span className="text-xs text-dq-white/50">{me.nickname}</span>
+            </div>
+          )}
+        </div>
+      )}
       {hand ? (
-        <div className={`${gridClass} overflow-visible`}>
+        <div className="grid overflow-visible justify-center lg:justify-start" style={gridStyle}>
           {hand.cardIds.map((cardId, idx) => (
             <CardTile
               key={`${cardId}-${idx}`}
@@ -650,10 +661,13 @@ function ActionBar({
   onClearError: () => void;
   gameEnded?: boolean;
 }) {
+  const barHeight = "min-h-[24px] lg:min-h-[40px]";
+  const textSize = "text-xs lg:text-sm";
+
   if (gameEnded) {
     return (
-      <div className="w-full min-h-[48px] rounded-xl bg-dq-red/15 border-2 border-dq-red/50 flex items-center justify-center ring-1 ring-dq-red/30">
-        <span className="text-dq-redLight font-bold text-sm">게임이 종료되었습니다</span>
+      <div className={`w-full ${barHeight} rounded-lg lg:rounded-xl bg-dq-red/15 border-2 border-dq-red/50 flex items-center justify-center ring-1 ring-dq-red/30`}>
+        <span className={`text-dq-redLight font-bold ${textSize}`}>게임이 종료되었습니다</span>
       </div>
     );
   }
@@ -662,7 +676,7 @@ function ActionBar({
       <button
         type="button"
         onClick={onClearError}
-        className="w-full min-h-[48px] rounded-xl font-bold text-sm bg-dq-redDark text-dq-white/90 px-4"
+        className={`w-full ${barHeight} rounded-lg lg:rounded-xl font-bold ${textSize} bg-dq-redDark text-dq-white/90 px-3 lg:px-4`}
       >
         {txError} (탭하여 닫기)
       </button>
@@ -670,22 +684,22 @@ function ActionBar({
   }
   if (txPending) {
     return (
-      <div className="w-full min-h-[48px] rounded-xl bg-dq-black border border-white/10 flex items-center justify-center">
-        <span className="text-dq-white/60 text-sm">처리 중…</span>
+      <div className={`w-full ${barHeight} rounded-lg lg:rounded-xl bg-dq-black border border-white/10 flex items-center justify-center`}>
+        <span className={`text-dq-white/60 ${textSize}`}>처리 중…</span>
       </div>
     );
   }
   if (!isMyTurn) {
     return (
-      <div className="w-full min-h-[48px] rounded-xl bg-dq-black border border-white/10 flex items-center justify-center">
-        <span className="text-dq-white/40 text-sm">상대 턴 대기 중…</span>
+      <div className={`w-full ${barHeight} rounded-lg lg:rounded-xl bg-dq-black border border-white/10 flex items-center justify-center`}>
+        <span className={`text-dq-white/40 ${textSize}`}>상대 턴 대기 중…</span>
       </div>
     );
   }
   if (!selectedCard) {
     return (
-      <div className="w-full min-h-[48px] rounded-xl bg-amber-400/15 border-2 border-amber-400/50 flex items-center justify-center ring-1 ring-amber-400/30">
-        <span className="text-amber-400 font-bold text-sm">카드를 선택하세요</span>
+      <div className={`w-full ${barHeight} rounded-lg lg:rounded-xl bg-amber-400/15 border-2 border-amber-400/50 flex items-center justify-center ring-1 ring-amber-400/30`}>
+        <span className={`text-amber-400 font-bold ${textSize}`}>카드를 선택하세요</span>
       </div>
     );
   }
@@ -697,8 +711,8 @@ function ActionBar({
       : "보드에서 놓을 위치를 탭하세요";
 
   return (
-    <div className="w-full min-h-[48px] rounded-xl bg-dq-red/10 border border-dq-red/30 flex items-center justify-center px-4">
-      <span className="text-dq-redLight text-sm font-medium">{hint}</span>
+    <div className={`w-full ${barHeight} rounded-lg lg:rounded-xl bg-dq-red/10 border border-dq-red/30 flex items-center justify-center px-3 lg:px-4`}>
+      <span className={`text-dq-redLight ${textSize} font-medium`}>{hint}</span>
     </div>
   );
 }
@@ -1009,38 +1023,38 @@ export default function GamePage() {
       )}
 
       {/* ── 상단 상태 표시줄 ──────────────────────────────────────── */}
-      <header className="shrink-0 px-4 py-3 bg-dq-charcoal border-b border-white/10 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
+      <header className="shrink-0 px-3 lg:px-4 py-1 lg:py-3 bg-dq-charcoal border-b border-white/10 flex items-center justify-between gap-2 lg:gap-3">
+        <div className="flex items-center gap-1.5 lg:gap-2">
           {gameEnded ? (
             <button
               type="button"
               onClick={() => router.push("/")}
-              className="px-3 py-1.5 rounded-xl text-sm font-bold bg-white/10 text-dq-white border border-white/20 hover:bg-white/20 transition-colors"
+              className="px-2.5 py-1 lg:px-3 lg:py-1.5 rounded-lg lg:rounded-xl text-xs lg:text-sm font-bold bg-white/10 text-dq-white border border-white/20 hover:bg-white/20 transition-colors"
             >
               나가기
             </button>
           ) : (
             <>
-              <span className="text-xs text-dq-white/50">턴</span>
-              <span className="font-mono font-bold text-dq-white text-sm">
+              <span className="text-[10px] lg:text-xs text-dq-white/50">턴</span>
+              <span className="font-mono font-bold text-dq-white text-xs lg:text-sm">
                 {game?.turnNumber ?? "-"}
               </span>
               {isMyTurn && (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-400/20 text-amber-400 border border-amber-400/30">
+                <span className="px-1.5 py-0.5 lg:px-2 lg:py-0.5 rounded-full text-[9px] lg:text-[10px] font-bold bg-amber-400/20 text-amber-400 border border-amber-400/30">
                   내 차례
                 </span>
               )}
             </>
           )}
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 lg:hidden">
-            <span className="text-xs text-dq-white/50">덱</span>
-            <span className="font-mono text-sm text-dq-white">
+        <div className="flex items-center gap-2 lg:gap-3">
+          <div className="flex items-center gap-1 lg:gap-1.5 lg:hidden">
+            <span className="text-[10px] lg:text-xs text-dq-white/50">덱</span>
+            <span className="font-mono text-xs lg:text-sm text-dq-white">
               {game?.deckMeta?.drawLeft ?? "-"}
             </span>
           </div>
-          <div className="flex gap-3 text-xs">
+          <div className="flex gap-2 lg:gap-3 text-[10px] lg:text-xs">
             <span className="text-dq-redLight font-bold">A {game?.scoreByTeam?.A ?? 0}</span>
             <span className="text-dq-blueLight font-bold">B {game?.scoreByTeam?.B ?? 0}</span>
           </div>
@@ -1133,8 +1147,8 @@ export default function GamePage() {
 
       {/* 모바일 하단 고정 액션바 */}
       <div
-        className="shrink-0 px-4 py-3 bg-dq-charcoal border-t border-white/10 lg:hidden"
-        style={{ paddingBottom: "calc(12px + env(safe-area-inset-bottom))" }}
+        className="shrink-0 px-4 py-2 bg-dq-charcoal border-t border-white/10 lg:hidden"
+        style={{ paddingBottom: "calc(8px + env(safe-area-inset-bottom))" }}
       >
         <ActionBar
           isMyTurn={isMyTurn}
