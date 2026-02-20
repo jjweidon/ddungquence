@@ -233,6 +233,13 @@ export async function submitTurnAction(
       if (newChipsByCell[String(targetCellId)]) {
         throw new Error("해당 칸은 이미 점유되어 있습니다.");
       }
+      // 변형 규칙: One-eyed로 제거된 칸은 바로 다음 플레이어만 Two-eyed로 배치 불가
+      if (action.type === "TURN_PLAY_JACK_WILD") {
+        const locked = game.oneEyeLockedCell;
+        if (locked !== undefined && locked !== null && locked === targetCellId) {
+          throw new Error("이전 턴에서 One-eyed Jack으로 제거된 칸에는 바로 다음 턴에 Two-eyed Jack을 사용할 수 없습니다.");
+        }
+      }
       newChipsByCell[String(targetCellId)] = me.teamId;
     } else if (action.type === "TURN_PLAY_JACK_REMOVE") {
       const { removeCellId } = action;
@@ -241,6 +248,11 @@ export async function submitTurnAction(
       const sequenceCells = new Set(game.completedSequences.flatMap((s) => s.cells));
       if (sequenceCells.has(removeCellId)) {
         throw new Error("완성된 시퀀스의 칩은 제거할 수 없습니다.");
+      }
+      // 변형 규칙: Two-eyed로 배치된 칸은 바로 다음 플레이어만 One-eyed로 제거 불가
+      const twoEyeLocked = game.twoEyeLockedCell;
+      if (twoEyeLocked !== undefined && twoEyeLocked !== null && twoEyeLocked === removeCellId) {
+        throw new Error("이전 턴에서 Two-eyed Jack으로 배치된 칸은 바로 다음 턴에 One-eyed Jack으로 제거할 수 없습니다.");
       }
       delete newChipsByCell[String(removeCellId)];
     }
@@ -277,9 +289,11 @@ export async function submitTurnAction(
       [String(me.seat)]: action.cardId,
     };
 
-    // oneEyeLockedCell
+    // oneEyeLockedCell / twoEyeLockedCell (바로 다음 턴만 적용, 그 외 액션 시 null)
     const oneEyeLockedCell =
       action.type === "TURN_PLAY_JACK_REMOVE" ? action.removeCellId : null;
+    const twoEyeLockedCell =
+      action.type === "TURN_PLAY_JACK_WILD" ? action.targetCellId : null;
 
     // deckMeta: 드로우 1장 시 drawLeft 감소 (Phase 2에서 실제 덱 업데이트)
     const currentDrawLeft = game.deckMeta?.drawLeft ?? 0;
@@ -302,6 +316,7 @@ export async function submitTurnAction(
       "game.scoreByTeam": scoreByTeam,
       "game.deckMeta": newDeckMeta,
       "game.oneEyeLockedCell": oneEyeLockedCell ?? null,
+      "game.twoEyeLockedCell": twoEyeLockedCell ?? null,
       "game.lastAction": { uid, type: action.type, at: serverTimestamp() },
       ...(winnerTeam
         ? { "game.winner": { teamId: winnerTeam, atTurn: game.turnNumber } }

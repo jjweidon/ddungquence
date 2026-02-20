@@ -15,7 +15,7 @@ export interface CellHighlight {
  *
  * - 일반 카드: 해당 카드에 대응하는 빈 칸
  * - Two-eyed Jack: 모든 빈 칸 (단, oneEyeLockedCell 제외)
- * - One-eyed Jack: 칩이 있는 칸(상대·자기 팀 모두) 중 완성된 시퀀스에 포함되지 않은 칸
+ * - One-eyed Jack: 칩이 있는 칸(상대·자기 팀 모두) 중 완성된 시퀀스 제외, twoEyeLockedCell 제외
  * - 데드 카드 / 잭이 아닌 카드 중 놓을 곳 없음: 빈 셋 반환
  */
 export function getHighlightForCard(
@@ -24,6 +24,7 @@ export function getHighlightForCard(
   chipsByCell: ChipsByCell,
   completedSequences: CompletedSequence[],
   oneEyeLockedCell?: number | null,
+  twoEyeLockedCell?: number | null,
 ): CellHighlight {
   if (isTwoEyedJack(cardId)) {
     const playable = new Set<number>();
@@ -43,7 +44,10 @@ export function getHighlightForCard(
     const removable = new Set<number>();
     for (const [cellStr] of Object.entries(chipsByCell)) {
       const cellId = Number(cellStr);
-      if (!sequenceCells.has(cellId)) removable.add(cellId);
+      if (sequenceCells.has(cellId)) continue;
+      // 변형 규칙: Two-eyed로 배치된 칸은 바로 다음 플레이어만 One-eyed로 제거 불가
+      if (twoEyeLockedCell !== undefined && twoEyeLockedCell !== null && twoEyeLockedCell === cellId) continue;
+      removable.add(cellId);
     }
     return { playable: new Set(), removable };
   }

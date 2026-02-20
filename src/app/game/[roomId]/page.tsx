@@ -304,6 +304,7 @@ function GameBoard({
           chipsByCell,
           completedSequences,
           game?.oneEyeLockedCell,
+          game?.twoEyeLockedCell,
         )
       : null;
 

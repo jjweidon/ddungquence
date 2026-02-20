@@ -42,6 +42,8 @@ export interface PublicGameState {
   deckMeta: { drawLeft: number; reshuffles: number };
   /** One-eyed Jack으로 제거된 셀: 바로 다음 플레이어는 Two-eyed로 여기에 배치 불가 */
   oneEyeLockedCell?: number | null;
+  /** Two-eyed Jack으로 배치된 셀: 바로 다음 플레이어는 One-eyed로 여기 칩 제거 불가 */
+  twoEyeLockedCell?: number | null;
   winner?: { teamId: TeamId; atTurn: number };
   lastAction?: { uid: string; type: string; at: Timestamp };
   /** 현재 턴이 시작된 시각(서버 기준). 새로고침 후에도 타이머 유지용 */

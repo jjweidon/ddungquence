@@ -97,6 +97,7 @@ type GameEvent =
 #### (3) 1-eye 잭
 - `delete chipsByCell[removeCellId]`
 - 단, removeCellId가 `completedSequences`에 포함되면 금지(MVP)
+- 변형 규칙: 바로 이전 턴에서 2-eye로 배치된 칸은 다음 순서 플레이어만 1-eye 제거 불가
 
 ### 5.2 private 업데이트(privateHands/{uid})
 - hand에서 사용 카드 제거
