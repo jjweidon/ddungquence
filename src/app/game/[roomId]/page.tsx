@@ -117,6 +117,7 @@ const BoardCell = memo(function BoardCell({
   jackType,
   placedAnim,
   removingTeamId,
+  cellClickable,
   onClick,
 }: {
   cellId: number;
@@ -131,9 +132,12 @@ const BoardCell = memo(function BoardCell({
   placedAnim?: "normal" | "wild";
   /** 방금 제거된 칩 팀 → 유령 칩 제거 애니메이션 렌더링 */
   removingTeamId?: TeamId;
+  /** false면 하이라이트만 표시, 클릭 불가(상대 턴 위치 확인용) */
+  cellClickable: boolean;
   onClick: () => void;
 }) {
   const interactive = isPlayable || isRemovable;
+  const canClick = interactive && cellClickable;
 
   // drop-shadow는 img 실제 픽셀(카드 영역)을 따라가므로
   // 셀 크기와 카드 이미지 크기 차이에 무관하게 카드 윤곽에 딱 맞게 발광함
@@ -156,15 +160,15 @@ const BoardCell = memo(function BoardCell({
   return (
     <button
       type="button"
-      onClick={interactive ? onClick : undefined}
-      disabled={!interactive}
+      onClick={canClick ? onClick : undefined}
+      disabled={!canClick}
       aria-label={cardAltText(cardId)}
       className={[
         "relative overflow-hidden rounded-[2px] select-none transition-opacity duration-150",
-        interactive ? "cursor-pointer" : "cursor-default",
+        canClick ? "cursor-pointer" : "cursor-default",
         isDimmed ? "opacity-30" : "opacity-100",
-        isPlayable ? "hover:brightness-110" : "",
-        isRemovable ? "hover:brightness-125" : "",
+        canClick && isPlayable ? "hover:brightness-110" : "",
+        canClick && isRemovable ? "hover:brightness-125" : "",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -217,11 +221,14 @@ function GameBoard({
   game,
   myTeamId,
   selectedCard,
+  cellClickable,
   onCellClick,
 }: {
   game: PublicGameState | undefined;
   myTeamId: TeamId | undefined;
   selectedCard: string | null;
+  /** false면 하이라이트만 표시하고 셀 클릭 불가(상대 턴 위치 확인용) */
+  cellClickable: boolean;
   onCellClick: (cellId: number) => void;
 }) {
   const chipsByCell = game?.chipsByCell ?? {};
@@ -330,6 +337,7 @@ function GameBoard({
             jackType={jackType}
             placedAnim={placedAnim}
             removingTeamId={removingTeamId}
+            cellClickable={cellClickable}
             onClick={() => onCellClick(idx)}
           />
         );
@@ -342,13 +350,11 @@ function GameBoard({
 function CardTile({
   cardId,
   selected,
-  isMyTurn,
   isDead,
   onClick,
 }: {
   cardId: string;
   selected: boolean;
-  isMyTurn: boolean;
   isDead?: boolean;
   onClick?: () => void;
 }) {
@@ -356,13 +362,13 @@ function CardTile({
     <button
       type="button"
       onClick={onClick}
-      disabled={!isMyTurn || isDead}
+      disabled={isDead}
       className={[
         "relative w-full rounded-lg overflow-hidden select-none transition-all duration-100",
         selected
           ? "border border-amber-400 ring-1 ring-amber-400 scale-105 z-10"
           : "border border-white/20 hover:border-white/50",
-        isMyTurn && !isDead ? "cursor-pointer active:scale-95" : "cursor-default",
+        !isDead ? "cursor-pointer active:scale-95" : "cursor-default",
         isDead ? "opacity-35 grayscale" : "",
       ].join(" ")}
       aria-label={cardAltText(cardId)}
@@ -574,7 +580,6 @@ function PlayerStrip({
 function HandSection({
   hand,
   game,
-  isMyTurn,
   me,
   selectedCard,
   onSelectCard,
@@ -582,7 +587,6 @@ function HandSection({
 }: {
   hand: PrivateHandDoc | null;
   game: PublicGameState | undefined;
-  isMyTurn: boolean;
   me: RoomPlayerDoc | undefined;
   selectedCard: string | null;
   onSelectCard: (cardId: string) => void;
@@ -613,7 +617,6 @@ function HandSection({
               key={`${cardId}-${idx}`}
               cardId={cardId}
               selected={selectedCard === cardId}
-              isMyTurn={isMyTurn}
               isDead={isDeadCard(cardId, game?.chipsByCell ?? {})}
               onClick={() => {
                 if (isDeadCard(cardId, game?.chipsByCell ?? {})) return;
@@ -925,11 +928,11 @@ export default function GamePage() {
 
   const handleSelectCard = useCallback(
     (cardId: string) => {
-      if (gameEnded || !isMyTurn) return;
+      if (gameEnded) return;
       setSelectedCard((prev) => (prev === cardId ? null : cardId));
       setTxError(null);
     },
-    [isMyTurn, gameEnded],
+    [gameEnded],
   );
 
   const handleCellClick = useCallback(
@@ -1064,6 +1067,7 @@ export default function GamePage() {
                 game={game}
                 myTeamId={me?.teamId}
                 selectedCard={selectedCard}
+                cellClickable={isMyTurn}
                 onCellClick={handleCellClick}
               />
             </div>
@@ -1076,7 +1080,6 @@ export default function GamePage() {
           <HandSection
             hand={hand}
             game={game}
-            isMyTurn={isMyTurn}
             me={me}
             selectedCard={selectedCard}
             onSelectCard={handleSelectCard}
@@ -1109,6 +1112,7 @@ export default function GamePage() {
               game={game}
               myTeamId={me?.teamId}
               selectedCard={selectedCard}
+              cellClickable={isMyTurn}
               onCellClick={handleCellClick}
             />
           </div>
@@ -1119,7 +1123,6 @@ export default function GamePage() {
           <HandSection
             hand={hand}
             game={game}
-            isMyTurn={isMyTurn}
             me={me}
             selectedCard={selectedCard}
             onSelectCard={handleSelectCard}
