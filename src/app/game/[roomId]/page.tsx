@@ -715,7 +715,6 @@ function SequenceCompletePopup({ teamId }: { teamId: TeamId }) {
         <p className="text-2xl font-bold text-dq-white drop-shadow-lg">
           {teamLabel} 시퀀스 완성!
         </p>
-        <p className="text-dq-white/80 text-sm">5개 연속 달성</p>
       </div>
     </div>
   );
@@ -868,7 +867,7 @@ export default function GamePage() {
   const isMyTurn = !!uid && game?.currentUid === uid;
   const me = players.find((p) => p.uid === uid);
 
-  // 시퀀스 완성 팝업 + 결과창 타이밍 (마지막 칩 → 시퀀스 팝업 → 1초 후 결과창)
+  // 시퀀스 완성 팝업 + 결과창 타이밍 (칩 놓음 → 1초 뒤 시퀀스 팝업 → 2초 후 팝업 사라짐 / 게임 종료 시 2초 후 결과창)
   useEffect(() => {
     if (!game) return;
 
@@ -903,11 +902,16 @@ export default function GamePage() {
         setShowResultOverlay(true);
       }
     } else if (phase === "playing" && seqJustIncreased) {
-      // 1번째 시퀀스 완성 (게임 계속) → 시퀀스 팝업 2초 후 사라짐
+      // 1번째 시퀀스 완성 (게임 계속) → 1초 뒤 팝업 표시, 2초 후 사라짐
       const lastSeq = game.completedSequences[seqCount - 1];
-      if (lastSeq) setSequencePopup(lastSeq.teamId);
-      const t = setTimeout(() => setSequencePopup(null), 2000);
-      return () => clearTimeout(t);
+      const tShow = setTimeout(() => {
+        if (lastSeq) setSequencePopup(lastSeq.teamId);
+      }, 1000);
+      const tHide = setTimeout(() => setSequencePopup(null), 1000 + 2000);
+      return () => {
+        clearTimeout(tShow);
+        clearTimeout(tHide);
+      };
     } else if (phase === "playing" || phase === "setup") {
       setShowResultOverlay(false);
     }
