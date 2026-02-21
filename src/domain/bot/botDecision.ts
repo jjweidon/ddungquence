@@ -2,26 +2,32 @@
  * 봇 의사결정 알고리즘 (Pure Function)
  *
  * docs/20-bots.md §2 우선순위 구현:
- * 1. 승리(2nd 시퀀스 완성) — 일반카드 or Two-eyed Jack
- * 2. 위기 방어(상대 1시퀀스 + 4개라인 차단) — One-eyed Jack
- * 3. 첫 시퀀스 완성(일반카드)
- * 4. 첫 시퀀스 완성(Two-eyed Jack)
- * 5. 상대 4개라인 선제 차단(0시퀀스) — One-eyed Jack
- * 6. 4개짜리 라인 형성 — 일반카드
- * 7. 3개짜리 라인 형성 — 일반카드
- * 8. 2개짜리 라인 형성 — 일반카드
- * 9. 폴백: 보드 중앙 근처
+ *  1. 승리(2nd 시퀀스 완성) — 일반카드 or Two-eyed Jack
+ *  2. 위기 방어(상대 1시퀀스 + 4개라인 차단) — 일반카드 우선, 불가시 One-eyed Jack (§5-A)
+ *  3. 첫 시퀀스 완성 — 일반카드
+ *  4. 첫 시퀀스 완성 — Two-eyed Jack
+ *  5. 상대 0시퀀스 4개라인 선제 차단 — 일반카드 우선, 불가시 One-eyed Jack (§5-A)
+ *  6. 6목 자가 복구 → 시퀀스 완성 — One-eyed Jack(자팀 칩 제거)
+ *  7. 복합 수: One-eyed Jack 제거 후 자팀 4개이상 라인 형성 가능 (§5-B)
+ *  8. 4개짜리 라인 형성 — 일반카드
+ *  9. 3개짜리 라인 형성 — 일반카드
+ * 10. 2개짜리 라인 형성 — 일반카드
+ * 11. 폴백: 보드 중앙 근처
+ *
+ * 사전 유효성 검사(§4):
+ *  - §4-1: 6목 생성 금지 — 모든 배치 후보에 wouldCreateOvershoot 필터 적용
+ *  - §4-2: 직전 플레이어 제한 위반 금지 — locked cell 체크
  */
 
 import type { TeamId, ChipsByCell, CompletedSequence } from "../types";
 import { detectNewSequences } from "../rules/sequenceDetect";
 import { isDeadCard, getPlayableCells } from "../rules/deadCard";
 import { isTwoEyedJack, isOneEyedJack } from "../rules/jacks";
+
 const BOARD_SIZE = 10;
 const BOARD_CENTER_ROW = 4.5;
 const BOARD_CENTER_COL = 4.5;
 
-/** docs/20-bots.md §3 라인 정의: 5칸 윈도우 내 같은 팀 칩 수 */
 const DIRECTIONS: [number, number][] = [
   [0, 1],
   [1, 0],
@@ -45,10 +51,62 @@ function toCell(row: number, col: number): number {
   return row * BOARD_SIZE + col;
 }
 
+function distanceToCenter(cellId: number): number {
+  const row = cellRow(cellId);
+  const col = cellCol(cellId);
+  const dr = row - BOARD_CENTER_ROW;
+  const dc = col - BOARD_CENTER_COL;
+  return dr * dr + dc * dc;
+}
+
+// ─────────────────────────────────────────────────────────────
+// §4-1: 6목 생성 금지
+// ─────────────────────────────────────────────────────────────
+
 /**
- * 특정 셀에 botTeamId 칩을 놓았을 때의 최대 라인 길이(5칸 윈도우 기준).
- * 6목(6개 이상 연속) 윈도우는 제외한다.
- * docs/20-bots.md §3 "6목(6개 이상 연속)은 라인으로 인정하지 않는다" 적용.
+ * cellId에 teamId 칩을 놓으면 어떤 방향에서든 6개 이상 연속이 되는지 확인.
+ * true이면 해당 배치는 금지(docs/20-bots.md §4-1).
+ */
+function wouldCreateOvershoot(
+  cellId: number,
+  teamId: TeamId,
+  chipsByCell: ChipsByCell,
+): boolean {
+  const row = cellRow(cellId);
+  const col = cellCol(cellId);
+
+  for (const [dr, dc] of DIRECTIONS) {
+    let count = 1;
+
+    for (let k = 1; k < BOARD_SIZE; k++) {
+      const r = row + dr * k;
+      const c = col + dc * k;
+      if (!isInBounds(r, c)) break;
+      if (chipsByCell[String(toCell(r, c))] !== teamId) break;
+      count++;
+    }
+
+    for (let k = 1; k < BOARD_SIZE; k++) {
+      const r = row - dr * k;
+      const c = col - dc * k;
+      if (!isInBounds(r, c)) break;
+      if (chipsByCell[String(toCell(r, c))] !== teamId) break;
+      count++;
+    }
+
+    if (count >= 6) return true;
+  }
+
+  return false;
+}
+
+// ─────────────────────────────────────────────────────────────
+// 라인 점수 계산
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * cellId에 teamId 칩을 놓았을 때의 최대 라인 길이(5칸 윈도우 기준).
+ * 6목 윈도우는 제외한다(docs/20-bots.md §3).
  */
 function scoreLineAfterPlace(
   cellId: number,
@@ -61,14 +119,12 @@ function scoreLineAfterPlace(
   let maxLine = 1;
 
   for (const [dr, dc] of DIRECTIONS) {
-    // 이 방향에서 cellId를 포함하는 5칸 윈도우 시작점 범위
     for (let k = 0; k < 5; k++) {
       const startRow = row - dr * k;
       const startCol = col - dc * k;
       if (!isInBounds(startRow, startCol)) continue;
       if (!isInBounds(startRow + dr * 4, startCol + dc * 4)) continue;
 
-      // 5칸 윈도우의 칩 수 계산
       let count = 0;
       let allSameTeam = true;
       for (let i = 0; i < 5; i++) {
@@ -82,7 +138,6 @@ function scoreLineAfterPlace(
       }
       if (!allSameTeam) continue;
 
-      // 6목 체크: 윈도우 앞뒤에 같은 팀 칩이 있으면 제외
       const prevRow = startRow - dr;
       const prevCol = startCol - dc;
       const hasPrev =
@@ -105,8 +160,8 @@ function scoreLineAfterPlace(
 }
 
 /**
- * 특정 셀의 칩을 제거했을 때 해당 팀의 최대 라인 길이.
- * 1-eye Jack으로 상대 칩을 제거할 때 효과 평가용.
+ * cellId에 있는 칩을 기준으로 enemyTeamId의 최대 라인 길이.
+ * 1-eye Jack 제거 효과 평가에 사용.
  */
 function maxEnemyLineAt(
   cellId: number,
@@ -143,16 +198,169 @@ function maxEnemyLineAt(
   return maxLine;
 }
 
-/** 보드 중앙까지의 거리(작을수록 중앙에 가깝다) */
-function distanceToCenter(cellId: number): number {
-  const row = cellRow(cellId);
-  const col = cellCol(cellId);
-  const dr = row - BOARD_CENTER_ROW;
-  const dc = col - BOARD_CENTER_COL;
-  return dr * dr + dc * dc;
+// ─────────────────────────────────────────────────────────────
+// §5-A/§5-B: One-eyed Jack 갈등 해소
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * 상대 팀 N개짜리 라인의 빈칸(완성 방해 가능 셀) 목록 반환.
+ * 일반 카드로 이 셀을 채우면 해당 라인의 완성을 직접 차단할 수 있다(§5-A 일반카드 우선 원칙).
+ */
+function getEnemyThreatEmptyCells(
+  enemyTeamId: TeamId,
+  chipsByCell: ChipsByCell,
+  minEnemyCount: number,
+): Set<number> {
+  const threatCells = new Set<number>();
+
+  for (const [dr, dc] of DIRECTIONS) {
+    for (let row = 0; row < BOARD_SIZE; row++) {
+      for (let col = 0; col < BOARD_SIZE; col++) {
+        let enemyCount = 0;
+        const emptyCells: number[] = [];
+        let valid = true;
+
+        for (let k = 0; k < 5; k++) {
+          const r = row + dr * k;
+          const c = col + dc * k;
+          if (!isInBounds(r, c)) {
+            valid = false;
+            break;
+          }
+          const chip = chipsByCell[String(toCell(r, c))];
+          if (chip === enemyTeamId) {
+            enemyCount++;
+          } else if (chip === undefined) {
+            emptyCells.push(toCell(r, c));
+          } else {
+            valid = false;
+            break;
+          }
+        }
+
+        if (valid && enemyCount >= minEnemyCount) {
+          for (const ec of emptyCells) threatCells.add(ec);
+        }
+      }
+    }
+  }
+
+  return threatCells;
 }
 
-/** 1-eye jack으로 제거 가능한 적 셀 목록 */
+/**
+ * §5-B: 적 칩을 제거한 후 그 자리에 손패 일반 카드를 놓을 수 있을 때의 자팀 이득 점수.
+ * 5개짜리 완성 → +30, 4개짜리 → +10, 3개짜리 → +3, 이득 없음 → 0
+ */
+function selfGainScoreAfterRemoval(
+  cellId: number,
+  botTeamId: TeamId,
+  chipsByCell: ChipsByCell,
+  hand: string[],
+): number {
+  const chipsAfterRemoval: ChipsByCell = { ...chipsByCell };
+  delete chipsAfterRemoval[String(cellId)];
+
+  const canPlace = hand.some((cardId) => {
+    if (isTwoEyedJack(cardId) || isOneEyedJack(cardId)) return false;
+    return getPlayableCells(cardId, chipsAfterRemoval).includes(cellId);
+  });
+
+  if (!canPlace) return 0;
+  if (wouldCreateOvershoot(cellId, botTeamId, chipsAfterRemoval)) return 0;
+
+  const lineLen = scoreLineAfterPlace(cellId, botTeamId, chipsAfterRemoval);
+  if (lineLen >= 5) return 30;
+  if (lineLen >= 4) return 10;
+  if (lineLen >= 3) return 3;
+  return 0;
+}
+
+/**
+ * §5-A: 1-eye Jack으로 적 셀을 제거할 때의 종합 점수.
+ * 위협 제거(위협도 × 5) + 자팀 이득(§5-B)의 합산.
+ */
+function scoreRemoval(
+  cellId: number,
+  enemyTeamId: TeamId,
+  botTeamId: TeamId,
+  chipsByCell: ChipsByCell,
+  hand: string[],
+): number {
+  const threatScore = maxEnemyLineAt(cellId, enemyTeamId, chipsByCell);
+  const gainScore = selfGainScoreAfterRemoval(cellId, botTeamId, chipsByCell, hand);
+  return threatScore * 5 + gainScore;
+}
+
+// ─────────────────────────────────────────────────────────────
+// 우선순위 6: 6목 자가 복구
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * 자팀 6목 구간의 끝 칩을 1-eye Jack으로 제거하면 유효 시퀀스가 완성되는 셀 반환.
+ * 존재하지 않으면 null(docs/20-bots.md §2 우선순위 6, §5-C).
+ */
+function findSixOvershootRepairCell(
+  botTeamId: TeamId,
+  chipsByCell: ChipsByCell,
+  completedSequences: CompletedSequence[],
+  twoEyeLockedCell: number | null | undefined,
+): number | null {
+  const seqCells = new Set(completedSequences.flatMap((s) => s.cells));
+
+  for (const [dr, dc] of DIRECTIONS) {
+    for (let row = 0; row < BOARD_SIZE; row++) {
+      for (let col = 0; col < BOARD_SIZE; col++) {
+        const prevRow = row - dr;
+        const prevCol = col - dc;
+        if (
+          isInBounds(prevRow, prevCol) &&
+          chipsByCell[String(toCell(prevRow, prevCol))] === botTeamId
+        ) {
+          continue;
+        }
+
+        if (chipsByCell[String(toCell(row, col))] !== botTeamId) continue;
+
+        let runLen = 0;
+        while (true) {
+          const r = row + dr * runLen;
+          const c = col + dc * runLen;
+          if (!isInBounds(r, c)) break;
+          if (chipsByCell[String(toCell(r, c))] !== botTeamId) break;
+          runLen++;
+        }
+
+        if (runLen < 6) continue;
+
+        const endCells = [
+          toCell(row, col),
+          toCell(row + dr * (runLen - 1), col + dc * (runLen - 1)),
+        ];
+        for (const endCell of endCells) {
+          if (seqCells.has(endCell)) continue;
+          if (twoEyeLockedCell != null && twoEyeLockedCell === endCell) continue;
+
+          const chipsAfterRemoval: ChipsByCell = { ...chipsByCell };
+          delete chipsAfterRemoval[String(endCell)];
+
+          const newSeqs = detectNewSequences(chipsAfterRemoval, completedSequences);
+          if (newSeqs.some((s) => s.teamId === botTeamId)) {
+            return endCell;
+          }
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+// ─────────────────────────────────────────────────────────────
+// 후보 목록 생성 헬퍼
+// ─────────────────────────────────────────────────────────────
+
+/** 1-eye jack으로 제거 가능한 적 셀 목록(완성 시퀀스 및 locked cell 제외) */
 function getRemovableCells(
   enemyTeamId: TeamId,
   chipsByCell: ChipsByCell,
@@ -171,7 +379,7 @@ function getRemovableCells(
   return removable;
 }
 
-/** 2-eye jack으로 배치 가능한 빈 셀 목록 */
+/** 2-eye jack으로 배치 가능한 빈 셀 목록(locked cell 제외) */
 function getWildCells(
   chipsByCell: ChipsByCell,
   oneEyeLockedCell: number | null | undefined,
@@ -179,7 +387,6 @@ function getWildCells(
   const cells: number[] = [];
   for (let cellId = 0; cellId < 100; cellId++) {
     if (chipsByCell[String(cellId)]) continue;
-    // 잭은 코너에도 놓을 수 있음 (보드에 잭 카드 위치는 없지만 2-eye는 어디든 배치 가능)
     if (oneEyeLockedCell != null && oneEyeLockedCell === cellId) continue;
     cells.push(cellId);
   }
@@ -202,6 +409,10 @@ function getNormalPlayOptions(
   }
   return options;
 }
+
+// ─────────────────────────────────────────────────────────────
+// 공개 인터페이스
+// ─────────────────────────────────────────────────────────────
 
 export interface BotDecisionInput {
   chipsByCell: ChipsByCell;
@@ -240,10 +451,18 @@ export function decideBotAction(input: BotDecisionInput): BotGameAction {
   const mySeqCount = scoreByTeam[botTeamId] ?? 0;
   const enemySeqCount = scoreByTeam[enemyTeamId] ?? 0;
 
-  const normalOptions = getNormalPlayOptions(hand, chipsByCell);
+  // §4-1: 6목 생성 금지 사전 필터 — normalOptions/wildCells에 적용
+  const normalOptions = getNormalPlayOptions(hand, chipsByCell).filter(
+    ({ cellId }) => !wouldCreateOvershoot(cellId, botTeamId, chipsByCell),
+  );
+
   const twoEyeCards = hand.filter((c) => isTwoEyedJack(c));
   const oneEyeCards = hand.filter((c) => isOneEyedJack(c));
-  const wildCells = getWildCells(chipsByCell, oneEyeLockedCell);
+
+  const wildCells = getWildCells(chipsByCell, oneEyeLockedCell).filter(
+    (cellId) => !wouldCreateOvershoot(cellId, botTeamId, chipsByCell),
+  );
+
   const removableCells = getRemovableCells(
     enemyTeamId,
     chipsByCell,
@@ -253,7 +472,6 @@ export function decideBotAction(input: BotDecisionInput): BotGameAction {
 
   // ── 우선순위 1: 승리(2번째 시퀀스 완성) — 일반카드 or 2-eye ──────────────
   if (mySeqCount === 1) {
-    // 일반카드로 시퀀스 완성
     for (const { cardId, cellId } of normalOptions) {
       const newChips: ChipsByCell = { ...chipsByCell, [String(cellId)]: botTeamId };
       const newSeqs = detectNewSequences(newChips, completedSequences);
@@ -261,7 +479,6 @@ export function decideBotAction(input: BotDecisionInput): BotGameAction {
         return { type: "TURN_PLAY_NORMAL", expectedVersion, cardId, targetCellId: cellId };
       }
     }
-    // 2-eye jack으로 시퀀스 완성
     if (twoEyeCards.length > 0) {
       for (const cellId of wildCells) {
         const newChips: ChipsByCell = { ...chipsByCell, [String(cellId)]: botTeamId };
@@ -278,29 +495,45 @@ export function decideBotAction(input: BotDecisionInput): BotGameAction {
     }
   }
 
-  // ── 우선순위 2: 위기 방어(상대 1시퀀스 + 4개라인 있을 때 1-eye로 차단) ────
-  if (enemySeqCount === 1 && oneEyeCards.length > 0) {
-    // 상대가 4개라인을 가진 셀을 1-eye로 제거
-    let bestRemoveCell: number | null = null;
-    let bestLineScore = 0;
-    for (const cellId of removableCells) {
-      const lineScore = maxEnemyLineAt(cellId, enemyTeamId, chipsByCell);
-      if (lineScore >= 4 && lineScore > bestLineScore) {
-        bestLineScore = lineScore;
-        bestRemoveCell = cellId;
-      }
-    }
-    if (bestRemoveCell !== null) {
+  // ── 우선순위 2: 위기 방어(상대 1시퀀스 + 4개라인) ─────────────────────────
+  // §5-A: 일반 카드로 차단 가능하면 잭 절약, 불가시 1-eye jack으로 최선 칩 제거
+  if (enemySeqCount === 1) {
+    const threatCells = getEnemyThreatEmptyCells(enemyTeamId, chipsByCell, 4);
+
+    const blockWithNormal = normalOptions.find(({ cellId }) => threatCells.has(cellId));
+    if (blockWithNormal) {
       return {
-        type: "TURN_PLAY_JACK_REMOVE",
+        type: "TURN_PLAY_NORMAL",
         expectedVersion,
-        cardId: oneEyeCards[0],
-        removeCellId: bestRemoveCell,
+        cardId: blockWithNormal.cardId,
+        targetCellId: blockWithNormal.cellId,
       };
+    }
+
+    if (oneEyeCards.length > 0) {
+      let bestRemoveCell: number | null = null;
+      let bestScore = 0;
+      for (const cellId of removableCells) {
+        const lineScore = maxEnemyLineAt(cellId, enemyTeamId, chipsByCell);
+        if (lineScore < 4) continue;
+        const score = scoreRemoval(cellId, enemyTeamId, botTeamId, chipsByCell, hand);
+        if (score > bestScore) {
+          bestScore = score;
+          bestRemoveCell = cellId;
+        }
+      }
+      if (bestRemoveCell !== null) {
+        return {
+          type: "TURN_PLAY_JACK_REMOVE",
+          expectedVersion,
+          cardId: oneEyeCards[0],
+          removeCellId: bestRemoveCell,
+        };
+      }
     }
   }
 
-  // ── 우선순위 3: 첫 시퀀스 완성 — 일반카드 ─────────────────────────────
+  // ── 우선순위 3: 첫 시퀀스 완성 — 일반카드 ──────────────────────────────
   if (mySeqCount === 0) {
     for (const { cardId, cellId } of normalOptions) {
       const newChips: ChipsByCell = { ...chipsByCell, [String(cellId)]: botTeamId };
@@ -311,7 +544,7 @@ export function decideBotAction(input: BotDecisionInput): BotGameAction {
     }
   }
 
-  // ── 우선순위 4: 첫 시퀀스 완성 — 2-eye jack ───────────────────────────
+  // ── 우선순위 4: 첫 시퀀스 완성 — 2-eye jack ────────────────────────────
   if (mySeqCount === 0 && twoEyeCards.length > 0) {
     for (const cellId of wildCells) {
       const newChips: ChipsByCell = { ...chipsByCell, [String(cellId)]: botTeamId };
@@ -327,28 +560,87 @@ export function decideBotAction(input: BotDecisionInput): BotGameAction {
     }
   }
 
-  // ── 우선순위 5: 상대 0시퀀스인데 4개라인 선제 차단 — 1-eye jack ────────
-  if (enemySeqCount === 0 && oneEyeCards.length > 0) {
-    let bestRemoveCell: number | null = null;
-    let bestLineScore = 0;
-    for (const cellId of removableCells) {
-      const lineScore = maxEnemyLineAt(cellId, enemyTeamId, chipsByCell);
-      if (lineScore >= 4 && lineScore > bestLineScore) {
-        bestLineScore = lineScore;
-        bestRemoveCell = cellId;
+  // ── 우선순위 5: 상대 0시퀀스 4개라인 선제 차단 ──────────────────────────
+  // §5-A: 일반 카드 우선, 불가시 1-eye jack
+  if (enemySeqCount === 0) {
+    const threatCells = getEnemyThreatEmptyCells(enemyTeamId, chipsByCell, 4);
+
+    const blockWithNormal = normalOptions.find(({ cellId }) => threatCells.has(cellId));
+    if (blockWithNormal) {
+      return {
+        type: "TURN_PLAY_NORMAL",
+        expectedVersion,
+        cardId: blockWithNormal.cardId,
+        targetCellId: blockWithNormal.cellId,
+      };
+    }
+
+    if (oneEyeCards.length > 0) {
+      let bestRemoveCell: number | null = null;
+      let bestScore = 0;
+      for (const cellId of removableCells) {
+        const lineScore = maxEnemyLineAt(cellId, enemyTeamId, chipsByCell);
+        if (lineScore < 4) continue;
+        const score = scoreRemoval(cellId, enemyTeamId, botTeamId, chipsByCell, hand);
+        if (score > bestScore) {
+          bestScore = score;
+          bestRemoveCell = cellId;
+        }
+      }
+      if (bestRemoveCell !== null) {
+        return {
+          type: "TURN_PLAY_JACK_REMOVE",
+          expectedVersion,
+          cardId: oneEyeCards[0],
+          removeCellId: bestRemoveCell,
+        };
       }
     }
-    if (bestRemoveCell !== null) {
+  }
+
+  // ── 우선순위 6: 6목 자가 복구 → 시퀀스 완성(1-eye Jack으로 자팀 칩 제거) ─
+  if (oneEyeCards.length > 0) {
+    const repairCell = findSixOvershootRepairCell(
+      botTeamId,
+      chipsByCell,
+      completedSequences,
+      twoEyeLockedCell,
+    );
+    if (repairCell !== null) {
       return {
         type: "TURN_PLAY_JACK_REMOVE",
         expectedVersion,
         cardId: oneEyeCards[0],
-        removeCellId: bestRemoveCell,
+        removeCellId: repairCell,
       };
     }
   }
 
-  // ── 우선순위 6~8: N개짜리 라인 형성(일반카드, N=4→3→2 순) ───────────────
+  // ── 우선순위 7: 복합 수 — 1-eye 제거 후 자팀 4개이상 라인 가능(§5-B) ─────
+  if (oneEyeCards.length > 0) {
+    let bestComboCell: number | null = null;
+    let bestComboScore = 9; // 4개짜리 이득(+10) 이상이어야 발동
+
+    for (const cellId of removableCells) {
+      const gainScore = selfGainScoreAfterRemoval(cellId, botTeamId, chipsByCell, hand);
+      if (gainScore < 10) continue;
+      const totalScore = scoreRemoval(cellId, enemyTeamId, botTeamId, chipsByCell, hand);
+      if (totalScore > bestComboScore) {
+        bestComboScore = totalScore;
+        bestComboCell = cellId;
+      }
+    }
+    if (bestComboCell !== null) {
+      return {
+        type: "TURN_PLAY_JACK_REMOVE",
+        expectedVersion,
+        cardId: oneEyeCards[0],
+        removeCellId: bestComboCell,
+      };
+    }
+  }
+
+  // ── 우선순위 8~10: N개짜리 라인 형성(일반카드, N=4→3→2 순) ──────────────
   for (const targetLineLen of [4, 3, 2]) {
     let bestOption: { cardId: string; cellId: number } | null = null;
     let bestDist = Infinity;
@@ -373,7 +665,7 @@ export function decideBotAction(input: BotDecisionInput): BotGameAction {
     }
   }
 
-  // ── 우선순위 9: 폴백 — 보드 중앙에 가까운 일반카드 위치 ────────────────
+  // ── 우선순위 11: 폴백 — 보드 중앙에 가까운 일반카드 위치 ─────────────────
   if (normalOptions.length > 0) {
     const sorted = [...normalOptions].sort(
       (a, b) => distanceToCenter(a.cellId) - distanceToCenter(b.cellId),
@@ -387,7 +679,6 @@ export function decideBotAction(input: BotDecisionInput): BotGameAction {
     };
   }
 
-  // 모든 카드가 데드카드이고 잭도 없는 경우
   return { type: "TURN_PASS", expectedVersion };
 }
 
@@ -404,4 +695,3 @@ export function nextBotName(existingBotNicknames: string[]): string {
 export function makeBotUid(nickname: string): string {
   return `bot_${nickname}`;
 }
-
