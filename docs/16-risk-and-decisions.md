@@ -28,12 +28,20 @@
 - 근거: 서버 없이 완전 공정 RNG는 구현 복잡도가 매우 큼
 - 리스크: host 치팅 가능 → 친구방 전제 + 차기 개선
 
-### [D-20260219-01] 잭 종류 판별: 문양 대신 카드 ID 번호(j_1/j_2) 기준
+### [D-20260219-01] 잭 종류 판별: 문양 대신 카드 ID 번호(j_1/j_2) 기준 ~~(번복됨 → D-20260221-01 참조)~~
 - 맥락: 기획 변경으로 Two-eyed/One-eyed Jack 구분 방식을 문양(클로버·다이아 vs 하트·스페이드)에서 카드 ID variant 번호로 변경
 - 고려한 옵션: (1) 기존 문양 기준 유지 (2) j_1/j_2 기준으로 변경
 - 결정: **j_2** = Two-eyed Jack(와일드 배치), **j_1** = One-eyed Jack(칩 제거). `cardId.endsWith("_j_2")` / `endsWith("_j_1")`로 판별
 - 근거: 카드 이미지/디자인이 j_1(한 눈), j_2(두 눈)로 구분되어 있어 ID와 일치시킴
 - 영향 범위: `src/domain/rules/jacks.ts`, 문서(01, 05, 08, 17, 18), Cursor rules
+- 후속 작업: D-20260221-01에 의해 번복됨
+
+### [D-20260221-01] 잭 종류 판별: variant 번호(j_1/j_2) 기준 → 문양(suit) 기준으로 재변경
+- 맥락: 기획 재변경. 카드 한 벌(덱)에서 클로버·다이아 잭은 모두 Two-eyed, 스페이드·하트 잭은 모두 One-eyed로 고정하는 방향으로 원복
+- 고려한 옵션: (1) j_1/j_2 기준 유지 (2) 문양 기준으로 재변경
+- 결정: **클로버·다이아(j_1·j_2 모두)** = Two-eyed Jack(와일드 배치), **스페이드·하트(j_1·j_2 모두)** = One-eyed Jack(칩 제거). 판별: `suit ∈ {clover, diamond}` / `suit ∈ {spade, heart}`
+- 근거: 실제 카드 게임(Sequence) 원본 룰에서 suit 기준으로 구분하며, 한 문양 안에 j_1·j_2가 서로 다른 눈 수를 갖는 것이 부자연스러움
+- 영향 범위: `src/domain/rules/jacks.ts`, 테스트(`__tests__/jacks.test.ts`), 문서(01, 05, 08, 18), Cursor rules(game-domain-rules, 00-project-principles)
 - 후속 작업: 없음
 
 ### [D-20260220-01] One-eyed Jack: 자기 팀 칩 제거 허용

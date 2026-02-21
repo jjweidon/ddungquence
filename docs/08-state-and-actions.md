@@ -20,10 +20,10 @@ stateDiagram-v2
 ---
 
 ## 3) 카드/잭 판정 규칙(상수)
-- Two-eyed Jack(와일드 배치): 카드 ID가 `*_j_2` 형태(예: `clover_j_2`, `heart_j_2`)
-- One-eyed Jack(상대 제거): 카드 ID가 `*_j_1` 형태(예: `clover_j_1`, `heart_j_1`)
+- Two-eyed Jack(와일드 배치): **클로버·다이아 잭**(예: `clover_j_1`, `clover_j_2`, `diamond_j_1`, `diamond_j_2`)
+- One-eyed Jack(칩 제거): **스페이드·하트 잭**(예: `spade_j_1`, `spade_j_2`, `heart_j_1`, `heart_j_2`)
 
-> 카드 ID 규격: `{suit}_{rank}_{variant}`. 잭 종류는 **variant 번호(j_1/j_2)**로 판별한다.
+> 카드 ID 규격: `{suit}_{rank}_{variant}`. 잭 종류는 **문양(suit)**으로 판별한다(클로버·다이아 = Two-eyed, 스페이드·하트 = One-eyed).
 
 ---
 
@@ -56,13 +56,13 @@ type GameAction =
   | {
       type: "TURN_PLAY_JACK_WILD";
       expectedVersion: number;
-      cardId: string;          // *_j_2 형태 (Two-eyed)
+      cardId: string;          // 클로버·다이아 잭 (Two-eyed)
       targetCellId: number;    // 어떤 빈칸
     }
   | {
       type: "TURN_PLAY_JACK_REMOVE";
       expectedVersion: number;
-      cardId: string;          // *_j_1 형태 (One-eyed)
+      cardId: string;          // 스페이드·하트 잭 (One-eyed)
       removeCellId: number;    // 상대 칩 제거 대상
     }
   // 변형 규칙: 데드 카드는 교체하지 않고 손에 유지(사용 불가). TURN_EXCHANGE_DEAD_CARD 미지원.

@@ -19,73 +19,105 @@ describe("isJack", () => {
   });
 });
 
-describe("isTwoEyedJack", () => {
+describe("isTwoEyedJack — 클로버·다이아 잭(j_1, j_2 모두)", () => {
+  it("clover_j_1 은 two-eyed jack이다", () => {
+    expect(isTwoEyedJack("clover_j_1")).toBe(true);
+  });
+
   it("clover_j_2 는 two-eyed jack이다", () => {
     expect(isTwoEyedJack("clover_j_2")).toBe(true);
+  });
+
+  it("diamond_j_1 은 two-eyed jack이다", () => {
+    expect(isTwoEyedJack("diamond_j_1")).toBe(true);
   });
 
   it("diamond_j_2 는 two-eyed jack이다", () => {
     expect(isTwoEyedJack("diamond_j_2")).toBe(true);
   });
 
-  it("heart_j_2 는 two-eyed jack이다", () => {
-    expect(isTwoEyedJack("heart_j_2")).toBe(true);
-  });
-
-  it("spade_j_2 는 two-eyed jack이다", () => {
-    expect(isTwoEyedJack("spade_j_2")).toBe(true);
-  });
-
-  it("clover_j_1 은 two-eyed jack이 아니다", () => {
-    expect(isTwoEyedJack("clover_j_1")).toBe(false);
-  });
-
   it("heart_j_1 은 two-eyed jack이 아니다", () => {
     expect(isTwoEyedJack("heart_j_1")).toBe(false);
   });
-});
 
-describe("isOneEyedJack", () => {
-  it("clover_j_1 은 one-eyed jack이다", () => {
-    expect(isOneEyedJack("clover_j_1")).toBe(true);
+  it("heart_j_2 는 two-eyed jack이 아니다", () => {
+    expect(isTwoEyedJack("heart_j_2")).toBe(false);
   });
 
-  it("diamond_j_1 은 one-eyed jack이다", () => {
-    expect(isOneEyedJack("diamond_j_1")).toBe(true);
+  it("spade_j_1 은 two-eyed jack이 아니다", () => {
+    expect(isTwoEyedJack("spade_j_1")).toBe(false);
+  });
+
+  it("spade_j_2 는 two-eyed jack이 아니다", () => {
+    expect(isTwoEyedJack("spade_j_2")).toBe(false);
+  });
+});
+
+describe("isOneEyedJack — 스페이드·하트 잭(j_1, j_2 모두)", () => {
+  it("spade_j_1 은 one-eyed jack이다", () => {
+    expect(isOneEyedJack("spade_j_1")).toBe(true);
+  });
+
+  it("spade_j_2 는 one-eyed jack이다", () => {
+    expect(isOneEyedJack("spade_j_2")).toBe(true);
   });
 
   it("heart_j_1 은 one-eyed jack이다", () => {
     expect(isOneEyedJack("heart_j_1")).toBe(true);
   });
 
-  it("spade_j_1 은 one-eyed jack이다", () => {
-    expect(isOneEyedJack("spade_j_1")).toBe(true);
+  it("heart_j_2 는 one-eyed jack이다", () => {
+    expect(isOneEyedJack("heart_j_2")).toBe(true);
+  });
+
+  it("clover_j_1 은 one-eyed jack이 아니다", () => {
+    expect(isOneEyedJack("clover_j_1")).toBe(false);
   });
 
   it("clover_j_2 는 one-eyed jack이 아니다", () => {
     expect(isOneEyedJack("clover_j_2")).toBe(false);
   });
 
-  it("heart_j_2 는 one-eyed jack이 아니다", () => {
-    expect(isOneEyedJack("heart_j_2")).toBe(false);
+  it("diamond_j_1 은 one-eyed jack이 아니다", () => {
+    expect(isOneEyedJack("diamond_j_1")).toBe(false);
+  });
+
+  it("diamond_j_2 는 one-eyed jack이 아니다", () => {
+    expect(isOneEyedJack("diamond_j_2")).toBe(false);
   });
 });
 
 describe("getJackType", () => {
+  it("clover_j_1 → 'two-eye'", () => {
+    expect(getJackType("clover_j_1")).toBe("two-eye");
+  });
+
   it("clover_j_2 → 'two-eye'", () => {
     expect(getJackType("clover_j_2")).toBe("two-eye");
   });
 
-  it("heart_j_2 → 'two-eye'", () => {
-    expect(getJackType("heart_j_2")).toBe("two-eye");
+  it("diamond_j_1 → 'two-eye'", () => {
+    expect(getJackType("diamond_j_1")).toBe("two-eye");
   });
 
-  it("clover_j_1 → 'one-eye'", () => {
-    expect(getJackType("clover_j_1")).toBe("one-eye");
+  it("diamond_j_2 → 'two-eye'", () => {
+    expect(getJackType("diamond_j_2")).toBe("two-eye");
   });
 
   it("heart_j_1 → 'one-eye'", () => {
     expect(getJackType("heart_j_1")).toBe("one-eye");
+  });
+
+  it("heart_j_2 → 'one-eye'", () => {
+    expect(getJackType("heart_j_2")).toBe("one-eye");
+  });
+
+  it("spade_j_1 → 'one-eye'", () => {
+    expect(getJackType("spade_j_1")).toBe("one-eye");
+  });
+
+  it("spade_j_2 → 'one-eye'", () => {
+    expect(getJackType("spade_j_2")).toBe("one-eye");
   });
 
   it("일반 카드는 null을 반환한다", () => {
