@@ -20,7 +20,7 @@ import { nextBotName } from "@/domain/bot/botDecision";
 import { sortParticipantsRedBlue } from "@/shared/lib/players";
 import { startGame } from "@/features/game/gameApi";
 import type { RoomPlayerDoc, TeamId } from "@/features/room/types";
-import { getDoc, getDocs, collection, doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { getDoc, getDocs, collection, doc, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { getFirestoreDb } from "@/lib/firebase/client";
 
 const MAX_PARTICIPANTS = 4;
@@ -97,15 +97,19 @@ function ShareIcon({ className }: { className?: string }) {
   );
 }
 
-// ─── RoomHeader: 방 코드 + 복사 + 카카오톡 공유 + 연결 상태 ─────────
+// ─── RoomHeader: 방 코드 + 복사 + 카카오톡 공유 + 나가기 ─────────
 function RoomHeader({
   code,
   onCopy,
   onShare,
+  onLeave,
+  leavePending,
 }: {
   code: string;
   onCopy: () => void;
   onShare: () => void;
+  onLeave: () => void;
+  leavePending: boolean;
 }) {
   const [copied, setCopied] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -156,9 +160,14 @@ function RoomHeader({
           >
             <ShareIcon className="size-5 block" />
           </button>
-          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-dq-green/20 text-dq-green border border-dq-green/30">
-            연결됨
-          </span>
+          <button
+            type="button"
+            onClick={onLeave}
+            disabled={leavePending}
+            className="min-h-[40px] px-3 py-2 rounded-xl border border-white/10 bg-dq-black text-dq-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dq-redLight disabled:opacity-50 text-sm font-medium"
+          >
+            {leavePending ? "나가는 중…" : "나가기"}
+          </button>
         </div>
       </div>
     </section>
@@ -608,6 +617,17 @@ export default function LobbyPage() {
         },
         { merge: true }
       );
+
+      // 호스트 이전: 현재 hostUid가 유효한 실제 인간 참여자가 아니면 본인이 호스트 인수.
+      // snap.docs = 전환 직전 시점의 플레이어 목록 (자신은 아직 관전자).
+      // hostUid는 room 구독으로 최신 상태 유지.
+      const currentHostEntry = snap.docs.find((d) => d.id === hostUid);
+      const currentHostData = currentHostEntry?.data() as (RoomPlayerDoc & { isBot?: boolean }) | undefined;
+      const hostIsValidHuman = currentHostData?.role === "participant" && !currentHostData?.isBot;
+      if (!hostIsValidHuman) {
+        const roomRef = doc(db, "rooms", roomId);
+        await updateDoc(roomRef, { hostUid: uid, updatedAt: serverTimestamp() });
+      }
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -761,7 +781,13 @@ export default function LobbyPage() {
           </div>
         )}
 
-        <RoomHeader code={code} onCopy={handleCopyCode} onShare={handleShare} />
+        <RoomHeader
+          code={code}
+          onCopy={handleCopyCode}
+          onShare={handleShare}
+          onLeave={handleLeaveRoom}
+          leavePending={leavePending}
+        />
         <PlayerSection
           players={players}
           hostUid={hostUid}
@@ -770,15 +796,6 @@ export default function LobbyPage() {
           onRemoveBot={handleRemoveBot}
         />
         <SpectatorSection players={players} myUid={uid} />
-
-        <button
-          type="button"
-          onClick={handleLeaveRoom}
-          disabled={leavePending}
-          className="w-full min-h-[44px] py-2 rounded-xl border border-white/10 bg-dq-black text-dq-white hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-dq-redLight disabled:opacity-50"
-        >
-          {leavePending ? "나가는 중…" : "나가기"}
-        </button>
       </div>
 
       {me && (

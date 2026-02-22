@@ -181,8 +181,8 @@ const BoardCell = memo(function BoardCell({
         ? "animate-chip-place"
         : undefined;
 
-  // opacity: 힌트(이미 칩 있는 카드 대응 칸)만 70%, 나머지는 100%. 상관없는 셀은 어둡게 하지 않음.
-  const opacityClass = isHint ? "opacity-70" : "opacity-100";
+  // opacity: 무관한 셀 75%, 힌트(이미 칩 있는 카드 대응 칸) 100%, 활성 셀은 brightness로 추가 강조
+  const opacityClass = isDimmed ? "opacity-75" : "opacity-100";
   // 활성(playable/removable) 셀은 더 밝게 강조
   const activeBrightness = (isPlayable || isRemovable) ? "brightness-110" : "";
 
@@ -348,8 +348,8 @@ function GameBoard({
         const isPlayable = highlight?.playable.has(idx) ?? false;
         const isRemovable = highlight?.removable.has(idx) ?? false;
         const isHint = highlight?.hint.has(idx) ?? false;
-        // 카드가 선택됐을 때: 상관없는 셀은 그대로 두고, 활성 셀만 더 밝게, hint(이미 칩 있는 칸)는 기존 방식 유지
-        const isDimmed = false;
+        // 카드가 선택됐을 때: 무관한 셀은 살짝 어둡게, 활성 셀은 밝게, hint(이미 칩 있는 칸)는 기존 유지
+        const isDimmed = !!highlight && !isPlayable && !isRemovable && !isHint;
         // 직전에 놓인 칩 → 칩에만 그림자
         const isLastPlaced =
           game?.lastPlacedCellId != null && game.lastPlacedCellId === idx;
@@ -619,7 +619,7 @@ function PlayerStrip({
   );
 }
 
-// ─── 손패 섹션 ────────────────────────────────────────────────────
+// ─── 손패 섹션 (참여자만, 관전자일 때는 상위에서 렌더하지 않음) ─────
 function HandSection({
   hand,
   game,
@@ -707,6 +707,7 @@ function ActionBar({
   txError,
   onClearError,
   gameEnded,
+  isSpectator,
 }: {
   isMyTurn: boolean;
   selectedCard: string | null;
@@ -714,6 +715,7 @@ function ActionBar({
   txError: string | null;
   onClearError: () => void;
   gameEnded?: boolean;
+  isSpectator?: boolean;
 }) {
   const barHeight = "min-h-[24px] lg:min-h-[40px]";
   const textSize = "text-xs lg:text-sm";
@@ -743,10 +745,12 @@ function ActionBar({
       </div>
     );
   }
-  if (!isMyTurn) {
+  if (isSpectator || !isMyTurn) {
     return (
       <div className={`w-full ${barHeight} rounded-lg lg:rounded-xl bg-dq-black border border-white/10 flex items-center justify-center`}>
-        <span className={`text-dq-white/40 ${textSize}`}>상대 턴 대기 중…</span>
+        <span className={`text-dq-white/40 ${textSize}`}>
+          {isSpectator ? "관전 중" : "상대 턴 대기 중…"}
+        </span>
       </div>
     );
   }
@@ -810,17 +814,16 @@ function EndedOverlay({
 
   const isWinner = winner.teamId === myTeamId;
   const winnerTeamId = winner.teamId;
-  const loserTeamId = winnerTeamId === "A" ? "B" : "A";
-  const winnerLabel = winnerTeamId === "A" ? "레드 팀" : "블루 팀";
-  const loserLabel = loserTeamId === "A" ? "레드 팀" : "블루 팀";
-  const winnerNames = participantsWithNames
-    .filter((p) => p.teamId === winnerTeamId)
+  const redNames = participantsWithNames
+    .filter((p) => p.teamId === "A")
     .map((p) => p.nickname)
     .join(", ");
-  const loserNames = participantsWithNames
-    .filter((p) => p.teamId === loserTeamId)
+  const blueNames = participantsWithNames
+    .filter((p) => p.teamId === "B")
     .map((p) => p.nickname)
     .join(", ");
+  const redScore = game.scoreByTeam?.A ?? 0;
+  const blueScore = game.scoreByTeam?.B ?? 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
@@ -833,33 +836,96 @@ function EndedOverlay({
         ].join(" ")}
       >
         <p className="text-6xl">{isWinner ? "🎉" : "😭"}</p>
-        <div className="text-center">
-          <p
+        <p
+          className={[
+            "text-3xl font-black tracking-tight",
+            isWinner ? "text-dq-green" : "text-dq-white/70",
+          ].join(" ")}
+        >
+          {isWinner ? "승리!" : "패배ㅠ"}
+        </p>
+        <p className="text-dq-white/60 text-sm -mt-2">게임 종료</p>
+
+        {/* 레드 vs 블루 비교: 팀별 닉네임 + 시퀀스 수 */}
+        <div className="w-full flex items-stretch gap-3 sm:gap-4">
+          {/* 레드 팀 카드 */}
+          <div
             className={[
-              "text-3xl font-black tracking-tight mb-2",
-              isWinner ? "text-dq-green" : "text-dq-white/70",
+              "flex-1 min-w-0 flex flex-col rounded-xl overflow-hidden border-2 transition-shadow",
+              winnerTeamId === "A"
+                ? "bg-dq-red/15 border-dq-red/60 shadow-[0_0_20px_rgba(214,31,44,0.2)_inset_0_1px_0_rgba(255,255,255,0.06)]"
+                : "bg-dq-red/10 border-dq-red/40 shadow-[0_0_12px_rgba(214,31,44,0.1)]",
             ].join(" ")}
           >
-            {isWinner ? "승리!" : "패배ㅠ"}
-          </p>
-          <p className="text-dq-white/60 text-sm mb-1">게임 종료</p>
-          <p className="text-xl font-bold text-dq-white">{winnerLabel} 승리!</p>
-          {winnerNames ? (
-            <p className="text-dq-white/80 text-sm mt-0.5">{winnerNames}</p>
-          ) : null}
-          <p className="text-dq-white/50 text-sm mt-1">{loserLabel} 패배</p>
-          {loserNames ? (
-            <p className="text-dq-white/60 text-sm">{loserNames}</p>
-          ) : null}
-          {isWinner && (
-            <p className="text-dq-redLight font-bold mt-1">축하합니다!</p>
-          )}
+            <div className="px-3 py-2 border-b border-dq-red/30 bg-dq-red/10">
+              <p className="text-dq-redLight font-bold text-sm tracking-wide">
+                레드 팀
+              </p>
+              <p className="text-dq-redLight/90 text-[10px] font-semibold mt-0.5">
+                {winnerTeamId === "A" ? "승리" : "패배"}
+              </p>
+            </div>
+            <div className="flex-1 flex flex-col items-center justify-center py-3 px-2 min-h-[52px]">
+              {redNames ? (
+                <p className="text-dq-white/95 text-xs leading-relaxed break-words text-center">
+                  {redNames}
+                </p>
+              ) : (
+                <span className="text-dq-white/40 text-xs">—</span>
+              )}
+            </div>
+            <div className="px-3 py-2 border-t border-dq-red/30 bg-dq-red/10 flex items-center justify-center">
+              <span className="text-dq-redLight font-black text-base tabular-nums">
+                {redScore}
+              </span>
+              <span className="text-dq-redLight/80 text-xs font-medium ml-0.5">시퀀스</span>
+            </div>
+          </div>
+
+          <div className="shrink-0 flex flex-col items-center justify-center">
+            <span className="inline-flex size-8 items-center justify-center rounded-full bg-white/10 border border-white/20 text-dq-white/70 text-xs font-black">
+              vs
+            </span>
+          </div>
+
+          {/* 블루 팀 카드 */}
+          <div
+            className={[
+              "flex-1 min-w-0 flex flex-col rounded-xl overflow-hidden border-2 transition-shadow",
+              winnerTeamId === "B"
+                ? "bg-dq-blue/15 border-dq-blueLight/50 shadow-[0_0_20px_rgba(107,154,232,0.25)_inset_0_1px_0_rgba(255,255,255,0.06)]"
+                : "bg-dq-blue/10 border-dq-blue/40 shadow-[0_0_12px_rgba(107,154,232,0.1)]",
+            ].join(" ")}
+          >
+            <div className="px-3 py-2 border-b border-dq-blueLight/30 bg-dq-blue/10">
+              <p className="text-dq-blueLight font-bold text-sm tracking-wide">
+                블루 팀
+              </p>
+              <p className="text-dq-blueLight/90 text-[10px] font-semibold mt-0.5">
+                {winnerTeamId === "B" ? "승리" : "패배"}
+              </p>
+            </div>
+            <div className="flex-1 flex flex-col items-center justify-center py-3 px-2 min-h-[52px]">
+              {blueNames ? (
+                <p className="text-dq-white/95 text-xs leading-relaxed break-words text-center">
+                  {blueNames}
+                </p>
+              ) : (
+                <span className="text-dq-white/40 text-xs">—</span>
+              )}
+            </div>
+            <div className="px-3 py-2 border-t border-dq-blueLight/30 bg-dq-blue/10 flex items-center justify-center">
+              <span className="text-dq-blueLight font-black text-base tabular-nums">
+                {blueScore}
+              </span>
+              <span className="text-dq-blueLight/80 text-xs font-medium ml-0.5">시퀀스</span>
+            </div>
+          </div>
         </div>
-        <div className="flex gap-3 text-sm font-bold">
-          <span className="text-dq-redLight">레드 {game.scoreByTeam.A}시퀀스</span>
-          <span className="text-dq-white/40">vs</span>
-          <span className="text-dq-blueLight">블루 {game.scoreByTeam.B}시퀀스</span>
-        </div>
+
+        {isWinner && (
+          <p className="text-dq-redLight font-bold text-sm">축하합니다!</p>
+        )}
         <div className="w-full flex flex-col gap-2">
           <button
             type="button"
@@ -912,6 +978,9 @@ export default function GamePage() {
   const runBotTimeoutRef = useRef<(() => void) | null>(null);
   /** 봇 턴 실행 1회만 방지 */
   const botTurnDoneRef = useRef<string>("");
+  /** 게임 종료 후 플레이어 doc이 삭제되어 me가 undefined가 되어도 닉네임·팀을 유지 */
+  const frozenNicknameRef = useRef<string>("");
+  const frozenTeamIdRef = useRef<TeamId | undefined>(undefined);
   /** 봇 턴 콜백에서 읽을 최신 game/participants/currentPlayer (effect 재실행 시 타이머 취소 방지용) */
   const botTurnContextRef = useRef<{
     game: PublicGameState;
@@ -941,8 +1010,8 @@ export default function GamePage() {
   const handleGoToLobby = useCallback(async () => {
     const code = room?.roomCode;
     if (!code) { router.push("/"); return; }
-    const me = players.find((p) => p.uid === uid);
-    const nickname = me?.nickname?.trim() || "Player";
+    // me가 이미 삭제된 경우를 대비해 frozenNicknameRef 사용
+    const nickname = frozenNicknameRef.current?.trim() || players.find((p) => p.uid === uid)?.nickname?.trim() || "Player";
     try {
       const { roomCode } = await rejoinRoomAfterGameEnd(roomId, nickname);
       router.push(`/lobby/${roomCode}`);
@@ -992,6 +1061,9 @@ export default function GamePage() {
   const game = room?.game;
   const isMyTurn = !!uid && game?.currentUid === uid;
   const me = players.find((p) => p.uid === uid);
+  // me가 삭제되어도 닉네임·팀 유지 (게임 종료 후 플레이어 doc 삭제 대비)
+  if (me?.nickname) frozenNicknameRef.current = me.nickname;
+  if (me?.teamId) frozenTeamIdRef.current = me.teamId as TeamId;
   const isHost = uid !== null && room?.hostUid === uid;
   const currentPlayer = game ? players.find((p) => p.uid === game.currentUid) : null;
   const isBotTurn = !!currentPlayer?.isBot && game?.phase === "playing";
@@ -1303,7 +1375,7 @@ export default function GamePage() {
       {game?.phase === "ended" && game.winner && showResultOverlay && (
         <EndedOverlay
           game={game}
-          myTeamId={me?.teamId}
+          myTeamId={frozenTeamIdRef.current ?? me?.teamId}
           participantsWithNames={players
             .filter((p) => p.role === "participant")
             .map((p) => ({ teamId: (p.teamId ?? "A") as TeamId, nickname: p.nickname }))}
@@ -1394,14 +1466,16 @@ export default function GamePage() {
         {/* 우측: 덱 + 손패 + 액션바 (overflow-visible로 손패 카드 확대 시 잘림 방지) */}
         <aside className="flex flex-col gap-6 overflow-visible">
           <DeckVisual drawLeft={game?.deckMeta?.drawLeft} />
-          <HandSection
-            hand={hand}
-            game={game}
-            me={me}
-            selectedCard={selectedCard}
-            onSelectCard={handleSelectCard}
-            layout="desktop"
-          />
+          {me?.role !== "spectator" && (
+            <HandSection
+              hand={hand}
+              game={game}
+              me={me}
+              selectedCard={selectedCard}
+              onSelectCard={handleSelectCard}
+              layout="desktop"
+            />
+          )}
           <ActionBar
             isMyTurn={isMyTurn}
             selectedCard={selectedCard}
@@ -1409,6 +1483,7 @@ export default function GamePage() {
             txError={txError}
             onClearError={() => setTxError(null)}
             gameEnded={gameEnded}
+            isSpectator={me?.role === "spectator"}
           />
         </aside>
       </div>
@@ -1436,16 +1511,18 @@ export default function GamePage() {
         </section>
 
         {/* shrink-0: 손패는 고정 높이, overflow-visible로 선택 시 카드 확대가 잘리지 않도록 */}
-        <div className="shrink-0 overflow-visible">
-          <HandSection
-            hand={hand}
-            game={game}
-            me={me}
-            selectedCard={selectedCard}
-            onSelectCard={handleSelectCard}
-            layout="mobile"
-          />
-        </div>
+        {me?.role !== "spectator" && (
+          <div className="shrink-0 overflow-visible">
+            <HandSection
+              hand={hand}
+              game={game}
+              me={me}
+              selectedCard={selectedCard}
+              onSelectCard={handleSelectCard}
+              layout="mobile"
+            />
+          </div>
+        )}
       </div>
 
       {/* 모바일 하단 고정 액션바 */}
@@ -1460,6 +1537,7 @@ export default function GamePage() {
           txError={txError}
           onClearError={() => setTxError(null)}
           gameEnded={gameEnded}
+          isSpectator={me?.role === "spectator"}
         />
       </div>
     </main>

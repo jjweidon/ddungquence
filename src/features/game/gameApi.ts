@@ -345,40 +345,11 @@ export async function submitTurnAction(
     tx.update(roomRef, gameUpdate);
   });
 
-  // 방이 방금 ended가 되었으면 전원 퇴장 후 봇만 재입장·준비, 방을 로비로 전환
-  const roomAfter = await getDoc(roomRef);
-  if (roomAfter.data()?.status === "ended") {
-    const playersRef = collection(db, "rooms", roomId, "players");
-    const playersSnap = await getDocs(playersRef);
-    const bots = playersSnap.docs
-      .map((d) => d.data() as RoomPlayerDoc & { isBot?: boolean })
-      .filter((p) => p.isBot === true)
-      .map((p) => ({ uid: p.uid, nickname: p.nickname, teamId: p.teamId ?? "A", seat: p.seat ?? 0 }));
-
-    const batch = writeBatch(db);
-    for (const d of playersSnap.docs) batch.delete(d.ref);
-    const now = serverTimestamp();
-    for (const b of bots) {
-      const botRef = doc(playersRef, b.uid);
-      batch.set(botRef, {
-        uid: b.uid,
-        nickname: b.nickname,
-        role: "participant",
-        teamId: b.teamId,
-        seat: b.seat,
-        ready: true,
-        readyAt: now,
-        joinedAt: now,
-        lastSeenAt: now,
-        isBot: true,
-      } satisfies RoomPlayerDocWrite & { isBot: true });
-    }
-    batch.update(roomRef, {
-      status: "lobby",
-      updatedAt: now,
-      game: deleteField(),
-    });
-    await batch.commit();
+  try {
+    await transitionRoomToLobby(roomId);
+  } catch (err) {
+    // 전환 실패 시 Phase 2는 계속 진행. rejoinRoomAfterGameEnd에서 재시도됨.
+    console.warn("[submitTurnAction] transitionRoomToLobby 실패:", err);
   }
 
   // ── Phase 2: 손패 + 덱 트랜잭션 (TURN_PASS는 카드 사용/드로우 없음) ───
@@ -576,40 +547,11 @@ export async function submitBotTurnAction(
     tx.update(roomRef, gameUpdate);
   });
 
-  // 게임 종료 후 전원 퇴장, 봇만 재입장·준비, 방을 로비로 전환
-  const roomAfter = await getDoc(roomRef);
-  if (roomAfter.data()?.status === "ended") {
-    const playersRef = collection(db, "rooms", roomId, "players");
-    const playersSnap = await getDocs(playersRef);
-    const bots = playersSnap.docs
-      .map((d) => d.data() as RoomPlayerDoc & { isBot?: boolean })
-      .filter((p) => p.isBot === true)
-      .map((p) => ({ uid: p.uid, nickname: p.nickname, teamId: p.teamId ?? "A", seat: p.seat ?? 0 }));
-
-    const batch = writeBatch(db);
-    for (const d of playersSnap.docs) batch.delete(d.ref);
-    const now = serverTimestamp();
-    for (const b of bots) {
-      const botRef = doc(playersRef, b.uid);
-      batch.set(botRef, {
-        uid: b.uid,
-        nickname: b.nickname,
-        role: "participant",
-        teamId: b.teamId,
-        seat: b.seat,
-        ready: true,
-        readyAt: now,
-        joinedAt: now,
-        lastSeenAt: now,
-        isBot: true,
-      } satisfies RoomPlayerDocWrite & { isBot: true });
-    }
-    batch.update(roomRef, {
-      status: "lobby",
-      updatedAt: now,
-      game: deleteField(),
-    });
-    await batch.commit();
+  try {
+    await transitionRoomToLobby(roomId);
+  } catch (err) {
+    // 전환 실패 시 Phase 2는 계속 진행. rejoinRoomAfterGameEnd에서 재시도됨.
+    console.warn("[submitBotTurnAction] transitionRoomToLobby 실패:", err);
   }
 
   if (action.type === "TURN_PASS") return;
@@ -665,6 +607,50 @@ export async function getBotHand(
  * 본인 손패(privateHands/{uid})를 실시간 구독.
  * Firestore 보안 규칙: uid만 read 가능.
  */
+/**
+ * 방이 ended 상태일 때 로비로 전환합니다. 전원 퇴장 후 봇만 재입장·준비, status=lobby, game 제거.
+ * 턴 제출 후 자동 호출되며, "로비로" 버튼에서 방이 아직 ended인 경우에도 호출 가능.
+ */
+export async function transitionRoomToLobby(roomId: string): Promise<void> {
+  const db = getFirestoreDb();
+  const roomRef = doc(db, "rooms", roomId);
+  const roomSnap = await getDoc(roomRef);
+  if (roomSnap.data()?.status !== "ended") return;
+
+  const playersRef = collection(db, "rooms", roomId, "players");
+  const playersSnap = await getDocs(playersRef);
+  const bots = playersSnap.docs
+    .map((d) => d.data() as RoomPlayerDoc & { isBot?: boolean })
+    .filter((p) => p.isBot === true)
+    .map((p) => ({ uid: p.uid, nickname: p.nickname, teamId: p.teamId ?? "A", seat: p.seat ?? 0 }));
+
+  const batch = writeBatch(db);
+  for (const d of playersSnap.docs) batch.delete(d.ref);
+  const now = serverTimestamp();
+  for (const b of bots) {
+    const botRef = doc(playersRef, b.uid);
+    batch.set(botRef, {
+      uid: b.uid,
+      nickname: b.nickname,
+      role: "participant",
+      teamId: b.teamId,
+      seat: b.seat,
+      ready: true,
+      readyAt: now,
+      joinedAt: now,
+      lastSeenAt: now,
+      isBot: true,
+    } satisfies RoomPlayerDocWrite & { isBot: true });
+  }
+  batch.update(roomRef, {
+    status: "lobby",
+    updatedAt: now,
+    // game 필드는 지우지 않음: 오버레이가 유지되어야 "로비로" 버튼을 누를 수 있음.
+    // startGame 시 game 필드를 덮어쓰므로 문제 없음.
+  });
+  await batch.commit();
+}
+
 export function subscribeToHand(
   roomId: string,
   uid: string,

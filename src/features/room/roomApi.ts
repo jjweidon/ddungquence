@@ -5,6 +5,7 @@ import {
   getDoc,
   getDocs,
   deleteDoc,
+  updateDoc,
   onSnapshot,
   serverTimestamp,
   writeBatch,
@@ -14,6 +15,7 @@ import { getFirestoreDb } from "@/lib/firebase/client";
 import { getFirebaseAuth } from "@/lib/firebase/client";
 import { sortParticipantsRedBlue } from "@/shared/lib/players";
 import type { RoomPlayerDoc, RoomPlayerDocWrite, TeamId } from "./types";
+import { transitionRoomToLobby } from "@/features/game/gameApi";
 
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // I,O,0,1 제외
 const CODE_LENGTH = 6;
@@ -273,9 +275,11 @@ export async function switchToSpectator(roomId: string): Promise<void> {
     { merge: true }
   );
 
-  if (isHost && remaining.length > 0) {
-    // 로비 표시 순서(레드-블루 인터리브, 팀 내 readyAt→seat)와 동일하게 첫 번째 참여자에게 호스트 이전
-    const sorted = sortParticipantsRedBlue(remaining);
+  // 봇은 호스트가 될 수 없으므로 실제 인간 참여자에게만 호스트 이전.
+  // 인간 참여자가 없으면 hostUid 변경하지 않음: 이 플레이어가 다시 참여하면 본인이 호스트 인수.
+  const humanRemaining = remaining.filter((p) => !p.isBot);
+  if (isHost && humanRemaining.length > 0) {
+    const sorted = sortParticipantsRedBlue(humanRemaining);
     const newHostUid = sorted[0].uid;
     batch.set(roomRef, { hostUid: newHostUid, updatedAt: serverTimestamp() }, { merge: true });
   }
@@ -380,12 +384,20 @@ export async function rejoinRoomAfterGameEnd(
   if (!uid) throw new Error("로그인이 필요합니다.");
 
   const roomRef = doc(db, "rooms", roomId);
-  const roomSnap = await getDoc(roomRef);
+  let roomSnap = await getDoc(roomRef);
   if (!roomSnap.exists()) throw new Error("방을 찾을 수 없습니다.");
 
-  const roomData = roomSnap.data() as import("./types").RoomDoc;
+  let roomData = roomSnap.data() as import("./types").RoomDoc;
+  if (roomData.status === "ended") {
+    // 턴 제출 클라이언트의 transitionRoomToLobby가 아직 완료되지 않았거나 실패한 경우
+    // 직접 전환을 시도한다. 이미 전환된 경우에도 내부에서 status 체크 후 early return되어 idempotent.
+    await transitionRoomToLobby(roomId);
+    roomSnap = await getDoc(roomRef);
+    if (!roomSnap.exists()) throw new Error("방을 찾을 수 없습니다.");
+    roomData = roomSnap.data() as import("./types").RoomDoc;
+  }
   if (roomData.status !== "lobby") {
-    throw new Error("로비 상태가 아닙니다. 새로고침 후 다시 시도해 주세요.");
+    throw new Error("로비 상태가 아닙니다. 잠시 후 다시 시도해 주세요.");
   }
 
   const playersRef = collection(db, "rooms", roomId, "players");
@@ -434,6 +446,17 @@ export async function rejoinRoomAfterGameEnd(
       joinedAt: now,
       lastSeenAt: now,
     } satisfies RoomPlayerDocWrite);
+
+    // 호스트 이전: 현재 hostUid가 유효한 실제 인간 참여자가 아니면 본인이 호스트 인수.
+    // transitionRoomToLobby가 모든 플레이어를 제거하므로 재입장 시 hostUid가 무효화될 수 있음.
+    // 봇은 호스트가 될 수 없으므로 isBot 여부도 확인.
+    const currentHostDoc = playersSnap.docs.find((d) => d.id === roomData.hostUid);
+    const currentHostData = currentHostDoc?.data() as (RoomPlayerDoc & { isBot?: boolean }) | undefined;
+    const hostIsValidHuman =
+      currentHostData?.role === "participant" && !currentHostData?.isBot;
+    if (!hostIsValidHuman) {
+      await updateDoc(roomRef, { hostUid: uid, updatedAt: serverTimestamp() });
+    }
   } else {
     // 관전자로 입장
     await setDoc(
