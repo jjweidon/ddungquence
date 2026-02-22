@@ -77,14 +77,35 @@ function CheckIcon({ className }: { className?: string }) {
     </svg>
   );
 }
+function ShareIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden
+    >
+      <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+      <polyline points="16 6 12 2 8 6" />
+      <line x1={12} x2={12} y1={2} y2={15} />
+    </svg>
+  );
+}
 
-// ─── RoomHeader: 방 코드 + 복사 + 연결 상태 ─────────────────────
+// ─── RoomHeader: 방 코드 + 복사 + 카카오톡 공유 + 연결 상태 ─────────
 function RoomHeader({
   code,
   onCopy,
+  onShare,
 }: {
   code: string;
   onCopy: () => void;
+  onShare: () => void;
 }) {
   const [copied, setCopied] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -126,6 +147,14 @@ function RoomHeader({
                 <ClipboardIcon className="size-5" />
               )}
             </span>
+          </button>
+          <button
+            type="button"
+            onClick={onShare}
+            aria-label="카카오톡으로 공유"
+            className="p-2 rounded-xl bg-dq-black border border-white/10 text-dq-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dq-redLight transition-colors"
+          >
+            <ShareIcon className="size-5 block" />
           </button>
           <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-dq-green/20 text-dq-green border border-dq-green/30">
             연결됨
@@ -491,6 +520,33 @@ export default function LobbyPage() {
     navigator.clipboard.writeText(normalized).catch(() => {});
   }, [code]);
 
+  const handleShare = useCallback(() => {
+    const normalized = code.trim().toUpperCase();
+    const url =
+      typeof window !== "undefined"
+        ? `${window.location.origin}/lobby/${normalized}`
+        : "";
+    const title = "뚱퀀스 방 초대";
+    const text = `방 코드: ${normalized}\n아래 링크로 참가할 수 있어요:`;
+
+    if (typeof navigator !== "undefined" && navigator.share) {
+      navigator
+        .share({
+          title,
+          text,
+          url: url || undefined,
+        })
+        .catch(() => {
+          // 사용자가 공유 취소 또는 미지원 시 클립보드로 폴백
+          const fallback = url ? `${text}\n${url}` : `${text}\n${normalized}`;
+          navigator.clipboard?.writeText(fallback).catch(() => {});
+        });
+    } else {
+      const fallback = url ? `${text}\n${url}` : `${title}\n${text}\n${normalized}`;
+      navigator.clipboard?.writeText(fallback).catch(() => {});
+    }
+  }, [code]);
+
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!roomId || !joinNickname.trim() || joinPending) return;
@@ -708,7 +764,7 @@ export default function LobbyPage() {
           </div>
         )}
 
-        <RoomHeader code={code} onCopy={handleCopyCode} />
+        <RoomHeader code={code} onCopy={handleCopyCode} onShare={handleShare} />
         <PlayerSection
           players={players}
           hostUid={hostUid}
