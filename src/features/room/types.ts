@@ -48,6 +48,10 @@ export interface PublicGameState {
   twoEyeLockedCell?: number | null;
   winner?: { teamId: TeamId; atTurn: number };
   lastAction?: { uid: string; type: string; at: Timestamp };
+  /** 직전 턴에 칩이 놓인 칸(칩에 그림자 힌트). 배치가 없으면 null */
+  lastPlacedCellId?: number | null;
+  /** 직전 턴에 액션이 일어난 칸(배치·제거 모두). 빈 칸(1-eye 제거)도 셀 어둡게 표시용 */
+  lastActionCellId?: number | null;
   /** 현재 턴이 시작된 시각(서버 기준). 새로고침 후에도 타이머 유지용 */
   turnStartedAt?: Timestamp;
 }

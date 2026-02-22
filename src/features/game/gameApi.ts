@@ -137,6 +137,8 @@ export async function startGame(roomId: string): Promise<void> {
       scoreByTeam: { A: 0, B: 0 },
       deckMeta: { drawLeft: drawPile.length, reshuffles: 0 },
       turnStartedAt: serverTimestamp(),
+      lastPlacedCellId: null,
+      lastActionCellId: null,
     },
   });
 
@@ -221,6 +223,7 @@ export async function submitTurnAction(
         "game.currentSeat": nextPlayer.seat,
         "game.turnStartedAt": serverTimestamp(),
         "game.lastAction": { uid, type: "TURN_PASS", at: serverTimestamp() },
+        "game.lastPlacedCellId": null,
         updatedAt: serverTimestamp(),
       });
       return;
@@ -303,6 +306,17 @@ export async function submitTurnAction(
     };
 
     // lastAction은 dot-notation으로 따로 기록 (serverTimestamp 사용)
+    const lastPlacedCellId =
+      action.type === "TURN_PLAY_NORMAL" || action.type === "TURN_PLAY_JACK_WILD"
+        ? action.targetCellId
+        : null;
+    const lastActionCellId =
+      action.type === "TURN_PLAY_NORMAL" || action.type === "TURN_PLAY_JACK_WILD"
+        ? action.targetCellId
+        : action.type === "TURN_PLAY_JACK_REMOVE"
+          ? action.removeCellId
+          : null;
+
     const gameUpdate = {
       "game.version": game.version + 1,
       "game.phase": isEnded ? "ended" : "playing",
@@ -318,6 +332,8 @@ export async function submitTurnAction(
       "game.oneEyeLockedCell": oneEyeLockedCell ?? null,
       "game.twoEyeLockedCell": twoEyeLockedCell ?? null,
       "game.lastAction": { uid, type: action.type, at: serverTimestamp() },
+      "game.lastPlacedCellId": lastPlacedCellId,
+      "game.lastActionCellId": lastActionCellId,
       ...(winnerTeam
         ? { "game.winner": { teamId: winnerTeam, atTurn: game.turnNumber } }
         : {}),
@@ -430,6 +446,8 @@ export async function submitBotTurnAction(
         "game.currentSeat": nextPlayer.seat,
         "game.turnStartedAt": serverTimestamp(),
         "game.lastAction": { uid: botUid, type: "TURN_PASS", at: serverTimestamp() },
+        "game.lastPlacedCellId": null,
+        "game.lastActionCellId": null,
         updatedAt: serverTimestamp(),
       });
       return;
@@ -497,6 +515,17 @@ export async function submitBotTurnAction(
       reshuffles: game.deckMeta?.reshuffles ?? 0,
     };
 
+    const lastPlacedCellId =
+      action.type === "TURN_PLAY_NORMAL" || action.type === "TURN_PLAY_JACK_WILD"
+        ? action.targetCellId
+        : null;
+    const lastActionCellId =
+      action.type === "TURN_PLAY_NORMAL" || action.type === "TURN_PLAY_JACK_WILD"
+        ? action.targetCellId
+        : action.type === "TURN_PLAY_JACK_REMOVE"
+          ? action.removeCellId
+          : null;
+
     const gameUpdate = {
       "game.version": game.version + 1,
       "game.phase": isEnded ? "ended" : "playing",
@@ -512,6 +541,8 @@ export async function submitBotTurnAction(
       "game.oneEyeLockedCell": oneEyeLockedCell ?? null,
       "game.twoEyeLockedCell": twoEyeLockedCell ?? null,
       "game.lastAction": { uid: botUid, type: action.type, at: serverTimestamp() },
+      "game.lastPlacedCellId": lastPlacedCellId,
+      "game.lastActionCellId": lastActionCellId,
       ...(winnerTeam
         ? { "game.winner": { teamId: winnerTeam, atTurn: game.turnNumber } }
         : {}),

@@ -52,11 +52,14 @@ const ChipOverlay = memo(function ChipOverlay({
   teamId,
   isInSequence,
   isRemovable,
+  isLastPlaced,
   chipAnimClass,
 }: {
   teamId: TeamId;
   isInSequence: boolean;
   isRemovable?: boolean;
+  /** 직전 턴에 놓인 칩 — 칩에만 힌트 링 표시 (모든 플레이어 공통) */
+  isLastPlaced?: boolean;
   /** chip circle에 직접 적용되는 애니메이션 클래스 */
   chipAnimClass?: string;
 }) {
@@ -69,7 +72,9 @@ const ChipOverlay = memo(function ChipOverlay({
     ? "ring-2 ring-orange-400 ring-offset-[1px] ring-offset-black/80 shadow-[0_0_12px_4px_rgba(251,146,60,0.75)]"
     : isInSequence
       ? "shadow-lg ring-2 ring-white/40"
-      : "";
+      : isLastPlaced
+        ? "shadow-[0_0_3px_3px_rgba(0,0,0,0.5)]"
+        : "";
 
   const hasOverlay = isRemovable || isInSequence;
   return (
@@ -125,6 +130,8 @@ const BoardCell = memo(function BoardCell({
   isRemovable,
   isHint,
   isDimmed,
+  isLastPlaced,
+  isLastActionCell,
   jackType,
   placedAnim,
   removingTeamId,
@@ -140,6 +147,10 @@ const BoardCell = memo(function BoardCell({
   /** 이 카드가 대응하지만 이미 점유되어 놓을 수 없는 칸 (인지용, 클릭 불가) */
   isHint: boolean;
   isDimmed: boolean;
+  /** 직전 턴에 놓인 칩 → 칩에 그림자 (칩 있을 때만) */
+  isLastPlaced?: boolean;
+  /** 직전 턴에 액션이 일어난 칸(배치·제거) → 셀 살짝 어둡게 (1-eye 제거된 빈 칸 포함) */
+  isLastActionCell?: boolean;
   jackType: "wild" | "remove" | null;
   /** 방금 배치된 칩의 종류 → 배치 애니메이션 선택 */
   placedAnim?: "normal" | "wild";
@@ -198,6 +209,10 @@ const BoardCell = memo(function BoardCell({
         className={["w-full h-full", shadowFilter].filter(Boolean).join(" ")}
         draggable={false}
       />
+      {/* 직전 턴 액션 셀(배치·제거) — 셀만 살짝 어둡게 (1-eye 제거된 빈 칸도 표시) */}
+      {isLastActionCell && (
+        <div className="absolute inset-0 bg-black/25 pointer-events-none rounded-[2px]" aria-hidden />
+      )}
       {/* 제거 중인 유령 칩 (1-eye jack 제거 애니메이션) */}
       {removingTeamId && (
         <ChipOverlay
@@ -212,6 +227,7 @@ const BoardCell = memo(function BoardCell({
           teamId={chip}
           isInSequence={isInSequence}
           isRemovable={isRemovable}
+          isLastPlaced={isLastPlaced}
           chipAnimClass={chipAnimClass}
         />
       )}
@@ -331,6 +347,12 @@ function GameBoard({
         const isHint = highlight?.hint.has(idx) ?? false;
         // 카드가 선택됐을 때: 활성(playable/removable) → 밝게, hint → 살짝 밝게, 나머지 → 어둡게
         const isDimmed = !!highlight && !isPlayable && !isRemovable && !isHint;
+        // 직전에 놓인 칩 → 칩에만 그림자
+        const isLastPlaced =
+          game?.lastPlacedCellId != null && game.lastPlacedCellId === idx;
+        // 직전 턴 액션 셀(배치 또는 1-eye 제거) → 셀 살짝 어둡게 (빈 칸도 표시)
+        const isLastActionCell =
+          game?.lastActionCellId != null && game.lastActionCellId === idx;
 
         const anim = cellAnims.get(idx);
         const placedAnim =
@@ -353,6 +375,8 @@ function GameBoard({
             isRemovable={isRemovable}
             isHint={isHint}
             isDimmed={isDimmed}
+            isLastPlaced={isLastPlaced}
+            isLastActionCell={isLastActionCell}
             jackType={jackType}
             placedAnim={placedAnim}
             removingTeamId={removingTeamId}
