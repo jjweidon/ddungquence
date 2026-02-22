@@ -3,6 +3,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  deleteField,
   onSnapshot,
   runTransaction,
   serverTimestamp,
@@ -344,18 +345,40 @@ export async function submitTurnAction(
     tx.update(roomRef, gameUpdate);
   });
 
-  // 방이 방금 ended가 되었으면 모든 참여자 준비 해제(재게임 시 대기 상태)
+  // 방이 방금 ended가 되었으면 전원 퇴장 후 봇만 재입장·준비, 방을 로비로 전환
   const roomAfter = await getDoc(roomRef);
   if (roomAfter.data()?.status === "ended") {
-    const playersSnap = await getDocs(collection(db, "rooms", roomId, "players"));
+    const playersRef = collection(db, "rooms", roomId, "players");
+    const playersSnap = await getDocs(playersRef);
+    const bots = playersSnap.docs
+      .map((d) => d.data() as RoomPlayerDoc & { isBot?: boolean })
+      .filter((p) => p.isBot === true)
+      .map((p) => ({ uid: p.uid, nickname: p.nickname, teamId: p.teamId ?? "A", seat: p.seat ?? 0 }));
+
     const batch = writeBatch(db);
-    for (const d of playersSnap.docs) {
-      const data = d.data() as RoomPlayerDoc;
-      if (data.role === "participant") {
-        batch.update(d.ref, { ready: false, readyAt: null });
-      }
+    for (const d of playersSnap.docs) batch.delete(d.ref);
+    const now = serverTimestamp();
+    for (const b of bots) {
+      const botRef = doc(playersRef, b.uid);
+      batch.set(botRef, {
+        uid: b.uid,
+        nickname: b.nickname,
+        role: "participant",
+        teamId: b.teamId,
+        seat: b.seat,
+        ready: true,
+        readyAt: now,
+        joinedAt: now,
+        lastSeenAt: now,
+        isBot: true,
+      } satisfies RoomPlayerDoc & { isBot: true });
     }
-    if (playersSnap.docs.length > 0) await batch.commit();
+    batch.update(roomRef, {
+      status: "lobby",
+      updatedAt: now,
+      game: deleteField(),
+    });
+    await batch.commit();
   }
 
   // ── Phase 2: 손패 + 덱 트랜잭션 (TURN_PASS는 카드 사용/드로우 없음) ───
@@ -553,18 +576,40 @@ export async function submitBotTurnAction(
     tx.update(roomRef, gameUpdate);
   });
 
-  // 게임 종료 후 준비 초기화
+  // 게임 종료 후 전원 퇴장, 봇만 재입장·준비, 방을 로비로 전환
   const roomAfter = await getDoc(roomRef);
   if (roomAfter.data()?.status === "ended") {
-    const playersSnap = await getDocs(collection(db, "rooms", roomId, "players"));
+    const playersRef = collection(db, "rooms", roomId, "players");
+    const playersSnap = await getDocs(playersRef);
+    const bots = playersSnap.docs
+      .map((d) => d.data() as RoomPlayerDoc & { isBot?: boolean })
+      .filter((p) => p.isBot === true)
+      .map((p) => ({ uid: p.uid, nickname: p.nickname, teamId: p.teamId ?? "A", seat: p.seat ?? 0 }));
+
     const batch = writeBatch(db);
-    for (const d of playersSnap.docs) {
-      const data = d.data() as import("@/features/room/types").RoomPlayerDoc;
-      if (data.role === "participant") {
-        batch.update(d.ref, { ready: false, readyAt: null });
-      }
+    for (const d of playersSnap.docs) batch.delete(d.ref);
+    const now = serverTimestamp();
+    for (const b of bots) {
+      const botRef = doc(playersRef, b.uid);
+      batch.set(botRef, {
+        uid: b.uid,
+        nickname: b.nickname,
+        role: "participant",
+        teamId: b.teamId,
+        seat: b.seat,
+        ready: true,
+        readyAt: now,
+        joinedAt: now,
+        lastSeenAt: now,
+        isBot: true,
+      } satisfies RoomPlayerDoc & { isBot: true });
     }
-    if (playersSnap.docs.length > 0) await batch.commit();
+    batch.update(roomRef, {
+      status: "lobby",
+      updatedAt: now,
+      game: deleteField(),
+    });
+    await batch.commit();
   }
 
   if (action.type === "TURN_PASS") return;

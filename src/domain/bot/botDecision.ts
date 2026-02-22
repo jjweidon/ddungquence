@@ -216,8 +216,9 @@ function maxEnemyLineAt(
 }
 
 /**
- * cellId가 속한 "상대 4목 위협 라인" 개수. 상대 1시퀀스일 때 방어적으로
- * 가장 많은 위협 라인에 걸쳐 있는 칩을 1-eye로 제거하기 위해 사용.
+ * cellId가 속한 "상대 위협 라인"(N목, N>=minEnemyCount) 개수.
+ * 상대 1시퀀스일 때 방어적으로 가장 많은 위협 라인에 걸쳐 있는 칩을 1-eye로 제거하기 위해 사용.
+ * minEnemyCount=3이면 3목·4목 모두 포함 → 4목과 3목이 겹친 교차점이 말단보다 우선 선택됨.
  */
 function countEnemyThreatLinesContaining(
   cellId: number,
@@ -579,7 +580,8 @@ export function decideBotAction(input: BotDecisionInput): BotGameAction {
       for (const cellId of removableCells) {
         const lineScore = maxEnemyLineAt(cellId, enemyTeamId, chipsByCell);
         if (lineScore < 4) continue; // 4목에 참여하지 않는 칩은 제거하지 않음
-        const threatLines = countEnemyThreatLinesContaining(cellId, enemyTeamId, chipsByCell, 4);
+        // 3목 이상으로 세어서 4목+3목 교차점이 4목 말단보다 우선(교차점 제거가 방어상 유리)
+        const threatLines = countEnemyThreatLinesContaining(cellId, enemyTeamId, chipsByCell, 3);
         const score = scoreRemoval(cellId, enemyTeamId, botTeamId, chipsByCell, hand);
         if (threatLines > bestThreatLines || (threatLines === bestThreatLines && score > bestScore)) {
           bestThreatLines = threatLines;

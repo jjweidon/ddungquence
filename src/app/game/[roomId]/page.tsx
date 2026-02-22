@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useState, useRef, useCallback, memo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ensureAnonAuth } from "@/features/auth/ensureAnonAuth";
-import { subscribeToRoom, returnToLobby } from "@/features/room/roomApi";
+import { subscribeToRoom, rejoinRoomAfterGameEnd } from "@/features/room/roomApi";
 import { subscribeToHand, submitTurnAction, submitBotTurnAction, getBotHand } from "@/features/game/gameApi";
 import { decideBotAction } from "@/domain/bot/botDecision";
 import { cardImageUrl, cardAltText } from "@/shared/lib/cardImage";
@@ -393,7 +393,6 @@ function GameBoard({
 function CardTile({
   cardId,
   selected,
-  isDead,
   onClick,
   width,
   height,
@@ -401,7 +400,6 @@ function CardTile({
 }: {
   cardId: string;
   selected: boolean;
-  isDead?: boolean;
   onClick?: () => void;
   width: number;
   height: number;
@@ -411,15 +409,13 @@ function CardTile({
     <button
       type="button"
       onClick={onClick}
-      disabled={isDead}
       style={{ width, height }}
       className={[
         "relative shrink-0 rounded-lg overflow-hidden select-none transition-all duration-100",
         selected
           ? "border border-amber-400 ring-1 ring-amber-400 scale-105 z-10"
           : "border border-white/20 hover:border-white/50",
-        !isDead ? "cursor-pointer active:scale-95" : "cursor-default",
-        isDead ? "opacity-35 grayscale" : "",
+        "cursor-pointer active:scale-95",
         isNew ? "animate-card-flip-in" : "",
       ].join(" ")}
       aria-label={cardAltText(cardId)}
@@ -435,13 +431,6 @@ function CardTile({
         className="block w-full h-full object-cover"
         draggable={false}
       />
-      {isDead && (
-        <span className="absolute inset-0 flex items-center justify-center">
-          <span className="bg-dq-black/70 text-dq-white/70 text-[9px] font-bold px-1 py-0.5 rounded">
-            DEAD
-          </span>
-        </span>
-      )}
     </button>
   );
 }
@@ -691,11 +680,7 @@ function HandSection({
               key={`${cardId}-${idx}`}
               cardId={cardId}
               selected={selectedCard === cardId}
-              isDead={isDeadCard(cardId, game?.chipsByCell ?? {})}
-              onClick={() => {
-                if (isDeadCard(cardId, game?.chipsByCell ?? {})) return;
-                onSelectCard(cardId);
-              }}
+              onClick={() => onSelectCard(cardId)}
               width={cardSize.width}
               height={cardSize.height}
               isNew={idx === animatingIdx}
@@ -807,11 +792,13 @@ function SequenceCompletePopup({ teamId }: { teamId: TeamId }) {
 function EndedOverlay({
   game,
   myTeamId,
+  participantsWithNames,
   onGoHome,
   onClose,
 }: {
   game: PublicGameState;
   myTeamId: TeamId | undefined;
+  participantsWithNames: Array<{ teamId: TeamId; nickname: string }>;
   onGoHome: () => void;
   onClose: () => void;
 }) {
@@ -819,7 +806,18 @@ function EndedOverlay({
   if (!winner) return null;
 
   const isWinner = winner.teamId === myTeamId;
-  const teamLabel = winner.teamId === "A" ? "레드 팀" : "블루 팀";
+  const winnerTeamId = winner.teamId;
+  const loserTeamId = winnerTeamId === "A" ? "B" : "A";
+  const winnerLabel = winnerTeamId === "A" ? "레드 팀" : "블루 팀";
+  const loserLabel = loserTeamId === "A" ? "레드 팀" : "블루 팀";
+  const winnerNames = participantsWithNames
+    .filter((p) => p.teamId === winnerTeamId)
+    .map((p) => p.nickname)
+    .join(", ");
+  const loserNames = participantsWithNames
+    .filter((p) => p.teamId === loserTeamId)
+    .map((p) => p.nickname)
+    .join(", ");
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
@@ -842,7 +840,14 @@ function EndedOverlay({
             {isWinner ? "승리!" : "패배ㅠ"}
           </p>
           <p className="text-dq-white/60 text-sm mb-1">게임 종료</p>
-          <p className="text-xl font-bold text-dq-white">{teamLabel} 승리!</p>
+          <p className="text-xl font-bold text-dq-white">{winnerLabel} 승리!</p>
+          {winnerNames ? (
+            <p className="text-dq-white/80 text-sm mt-0.5">{winnerNames}</p>
+          ) : null}
+          <p className="text-dq-white/50 text-sm mt-1">{loserLabel} 패배</p>
+          {loserNames ? (
+            <p className="text-dq-white/60 text-sm">{loserNames}</p>
+          ) : null}
           {isWinner && (
             <p className="text-dq-redLight font-bold mt-1">축하합니다!</p>
           )}
@@ -929,17 +934,25 @@ export default function GamePage() {
     setPlayers(list);
   }, []);
 
-  /** 게임 종료 후 로비 재입장: 참여자 준비 상태·입장 순서 초기화 후 이동 */
+  /** 게임 종료 후 로비 재입장: 동일 닉네임으로 방 참가 로직으로 재입장. 방이 찼으면 홈으로 */
   const handleGoToLobby = useCallback(async () => {
     const code = room?.roomCode;
     if (!code) { router.push("/"); return; }
+    const me = players.find((p) => p.uid === uid);
+    const nickname = me?.nickname?.trim() || "Player";
     try {
-      await returnToLobby(roomId);
-    } catch {
-      // 실패해도 이동 (로비에서 상태 불일치는 허용)
+      const { roomCode } = await rejoinRoomAfterGameEnd(roomId, nickname);
+      router.push(`/lobby/${roomCode}`);
+    } catch (err) {
+      const msg = (err as Error).message;
+      if (msg === "방이 찼습니다.") {
+        setError(msg);
+        router.push("/");
+      } else {
+        setError(msg);
+      }
     }
-    router.push(`/lobby/${code}`);
-  }, [room, roomId, router]);
+  }, [room?.roomCode, roomId, router, players, uid]);
 
   useEffect(() => {
     if (!roomId) return;
@@ -954,9 +967,6 @@ export default function GamePage() {
           return;
         }
         setRoom(roomData);
-        if (roomData.status === "lobby") {
-          router.push(`/lobby/${roomData.roomCode}`);
-        }
       });
 
       unsubHandRef.current = subscribeToHand(roomId, currentUid, setHand);
@@ -1291,6 +1301,9 @@ export default function GamePage() {
         <EndedOverlay
           game={game}
           myTeamId={me?.teamId}
+          participantsWithNames={players
+            .filter((p) => p.role === "participant")
+            .map((p) => ({ teamId: (p.teamId ?? "A") as TeamId, nickname: p.nickname }))}
           onGoHome={handleGoToLobby}
           onClose={() => setShowResultOverlay(false)}
         />
