@@ -3,5 +3,5 @@
   <rect width="169" height="244" rx="12" fill="white" stroke="#E5E5E5" />
   
   
-  <circle cx="84.5" cy="122" r="40" stroke="#000000" stroke-width="10" fill="none" stroke-opacity="1" />
-</svg>
+  <g transform="translate(84.5 122) scale(1.07) translate(-84.5 -122)"><circle cx="84.5" cy="122" r="40" stroke="#000000" stroke-width="10" fill="none" stroke-opacity="1" />
+</g></svg>
