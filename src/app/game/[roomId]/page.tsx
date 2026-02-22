@@ -181,8 +181,10 @@ const BoardCell = memo(function BoardCell({
         ? "animate-chip-place"
         : undefined;
 
-  // opacity: 활성 100%, 힌트(놓을 수 없지만 카드 대응 칸) 70%, 나머지 30%
-  const opacityClass = isDimmed ? "opacity-30" : isHint ? "opacity-70" : "opacity-100";
+  // opacity: 힌트(이미 칩 있는 카드 대응 칸)만 70%, 나머지는 100%. 상관없는 셀은 어둡게 하지 않음.
+  const opacityClass = isHint ? "opacity-70" : "opacity-100";
+  // 활성(playable/removable) 셀은 더 밝게 강조
+  const activeBrightness = (isPlayable || isRemovable) ? "brightness-110" : "";
 
   return (
     <button
@@ -191,10 +193,11 @@ const BoardCell = memo(function BoardCell({
       disabled={!canClick}
       aria-label={cardAltText(cardId)}
       className={[
-        "relative overflow-hidden rounded-[2px] select-none transition-opacity duration-150",
+        "relative overflow-hidden rounded-[2px] select-none transition-opacity duration-150 transition-[filter]",
         canClick ? "cursor-pointer" : "cursor-default",
         opacityClass,
-        canClick && isPlayable ? "hover:brightness-110" : "",
+        activeBrightness,
+        canClick && isPlayable ? "hover:brightness-125" : "",
         canClick && isRemovable ? "hover:brightness-125" : "",
       ]
         .filter(Boolean)
@@ -345,8 +348,8 @@ function GameBoard({
         const isPlayable = highlight?.playable.has(idx) ?? false;
         const isRemovable = highlight?.removable.has(idx) ?? false;
         const isHint = highlight?.hint.has(idx) ?? false;
-        // 카드가 선택됐을 때: 활성(playable/removable) → 밝게, hint → 살짝 밝게, 나머지 → 어둡게
-        const isDimmed = !!highlight && !isPlayable && !isRemovable && !isHint;
+        // 카드가 선택됐을 때: 상관없는 셀은 그대로 두고, 활성 셀만 더 밝게, hint(이미 칩 있는 칸)는 기존 방식 유지
+        const isDimmed = false;
         // 직전에 놓인 칩 → 칩에만 그림자
         const isLastPlaced =
           game?.lastPlacedCellId != null && game.lastPlacedCellId === idx;

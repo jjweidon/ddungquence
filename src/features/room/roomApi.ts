@@ -120,14 +120,44 @@ export async function joinRoomByCode(
   }
 
   const roomId = roomCodeSnap.data().roomId as string;
+  const roomRef = doc(db, "rooms", roomId);
+  const roomSnap = await getDoc(roomRef);
+  if (!roomSnap.exists()) {
+    throw new Error("방을 찾을 수 없습니다.");
+  }
+  const roomData = roomSnap.data() as import("./types").RoomDoc;
+  const maxParticipants = roomData.config?.maxPlayers ?? 4;
+  const maxSpectators = roomData.config?.maxSpectators ?? 2;
+
   const playersRef = collection(db, "rooms", roomId, "players");
   const playersSnap = await getDocs(playersRef);
   const participants = playersSnap.docs
     .map((d) => d.data() as RoomPlayerDoc)
     .filter((p) => p.role === "participant");
-  const maxPlayers = 4;
-  if (participants.length >= maxPlayers) {
-    throw new Error("방이 가득 찼습니다.");
+  const spectators = playersSnap.docs
+    .map((d) => d.data() as RoomPlayerDoc)
+    .filter((p) => p.role === "spectator");
+
+  const now = serverTimestamp();
+  const playerRef = doc(playersRef, uid);
+
+  if (participants.length >= maxParticipants) {
+    // 참여 자리가 없으면 관전 자리 있으면 관전자로 입장
+    if (spectators.length >= maxSpectators) {
+      throw new Error("방이 가득 찼습니다.");
+    }
+    await setDoc(
+      playerRef,
+      {
+        uid,
+        nickname: nickname.trim() || "Player",
+        role: "spectator",
+        joinedAt: now,
+        lastSeenAt: now,
+      } satisfies RoomPlayerDocWrite,
+      { merge: true },
+    );
+    return roomId;
   }
 
   // 현재 팀 카운트 기준으로 더 적은 팀에 배정 (동수면 레드 우선)
@@ -150,9 +180,6 @@ export async function joinRoomByCode(
       if (!occupiedSeats.has(s)) { seat = s; break; }
     }
   }
-
-  const now = serverTimestamp();
-  const playerRef = doc(db, "rooms", roomId, "players", uid);
 
   await setDoc(playerRef, {
     uid,

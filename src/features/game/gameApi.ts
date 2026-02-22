@@ -13,11 +13,11 @@ import {
 import { getFirestoreDb, getFirebaseAuth } from "@/lib/firebase/client";
 import { createShuffledDeck } from "@/domain/cards/deck";
 import { detectNewSequences } from "@/domain/rules/sequenceDetect";
-import type { RoomPlayerDoc, PublicGameState, TeamId } from "@/features/room/types";
+import type { RoomPlayerDoc, RoomPlayerDocWrite, PublicGameState, TeamId } from "@/features/room/types";
 import type { PrivateHandDoc, PrivateDealerDoc, GameAction } from "./types";
 
 /** 플레이어 수에 따른 초기 손패 장수 */
-function handSize(playerCount: number): number {
+function handSize(_playerCount: number): number {
   return 6;
 }
 
@@ -371,7 +371,7 @@ export async function submitTurnAction(
         joinedAt: now,
         lastSeenAt: now,
         isBot: true,
-      } satisfies RoomPlayerDoc & { isBot: true });
+      } satisfies RoomPlayerDocWrite & { isBot: true });
     }
     batch.update(roomRef, {
       status: "lobby",
@@ -602,7 +602,7 @@ export async function submitBotTurnAction(
         joinedAt: now,
         lastSeenAt: now,
         isBot: true,
-      } satisfies RoomPlayerDoc & { isBot: true });
+      } satisfies RoomPlayerDocWrite & { isBot: true });
     }
     batch.update(roomRef, {
       status: "lobby",

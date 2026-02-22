@@ -424,7 +424,6 @@ export default function LobbyPage() {
   const [roomId, setRoomId] = useState<string | null>(null);
   const [players, setPlayers] = useState<RoomPlayerDoc[]>([]);
   const [hostUid, setHostUid] = useState<string | null>(null);
-  const [roomStatus, setRoomStatus] = useState<"lobby" | "playing" | "ended">("lobby");
   const [status, setStatus] = useState<"loading" | "need-join" | "ready">(
     "loading"
   );
@@ -455,7 +454,6 @@ export default function LobbyPage() {
         return;
       }
       setHostUid(room.hostUid);
-      setRoomStatus(room.status as "lobby" | "playing" | "ended");
       setStatus("ready");
 
       // 플레이어 목록 구독
@@ -465,7 +463,6 @@ export default function LobbyPage() {
       unsubRoomRef.current = subscribeToRoom(rid, (roomData) => {
         if (!roomData) return;
         setHostUid(roomData.hostUid);
-        setRoomStatus(roomData.status);
         if (roomData.status === "playing") {
           router.push(`/game/${rid}`);
         }

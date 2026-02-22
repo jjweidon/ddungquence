@@ -23,9 +23,10 @@ function shuffleCopy<T>(arr: T[]): T[] {
   return copy;
 }
 
-// 카드 1장: 169×244 원본 비율, 표시 48×69px
+// 카드 1장: 169×244 원본 비율, 표시 48×69px (동적 src 많아 next/image 대신 img 사용)
 function CardImage({ src, index }: { src: string; index: number }) {
   return (
+    // eslint-disable-next-line @next/next/no-img-element -- 동적 카드 경로 다수, next/image 적합하지 않음
     <img
       src={src}
       alt=""
