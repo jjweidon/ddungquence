@@ -65,7 +65,7 @@ function distanceToCenter(cellId: number): number {
 
 /**
  * cellId에 teamId 칩을 놓으면 어떤 방향에서든 6개 이상 연속이 되는지 확인.
- * true이면 해당 배치는 금지(docs/20-bots.md §4-1).
+ * true이면 해당 배치는 원칙적으로 금지(docs/20-bots.md §4-1).
  */
 function wouldCreateOvershoot(
   cellId: number,
@@ -97,6 +97,23 @@ function wouldCreateOvershoot(
     if (count >= 6) return true;
   }
 
+  return false;
+}
+
+/**
+ * 6목을 만들게 되는 배치라도, 그 칸을 놓았을 때 시퀀스 완성 또는 4목 이상 라인이 생기면 허용.
+ * (o o x x o x) → (o o x x o o)처럼 의미 없는 6목 확장은 피하고, 5목 완성/다른 방향 4목은 허용.
+ */
+function isOvershootPlacementAllowed(
+  cellId: number,
+  botTeamId: TeamId,
+  chipsByCell: ChipsByCell,
+  completedSequences: CompletedSequence[],
+): boolean {
+  const newChips: ChipsByCell = { ...chipsByCell, [String(cellId)]: botTeamId };
+  const newSeqs = detectNewSequences(newChips, completedSequences);
+  if (newSeqs.some((s) => s.teamId === botTeamId)) return true;
+  if (scoreLineAfterPlace(cellId, botTeamId, newChips) >= 4) return true;
   return false;
 }
 
@@ -196,6 +213,47 @@ function maxEnemyLineAt(
   }
 
   return maxLine;
+}
+
+/**
+ * cellId가 속한 "상대 4목 위협 라인" 개수. 상대 1시퀀스일 때 방어적으로
+ * 가장 많은 위협 라인에 걸쳐 있는 칩을 1-eye로 제거하기 위해 사용.
+ */
+function countEnemyThreatLinesContaining(
+  cellId: number,
+  enemyTeamId: TeamId,
+  chipsByCell: ChipsByCell,
+  minEnemyCount: number,
+): number {
+  let count = 0;
+  const row = cellRow(cellId);
+  const col = cellCol(cellId);
+
+  for (const [dr, dc] of DIRECTIONS) {
+    for (let k = 0; k < 5; k++) {
+      const startRow = row - dr * k;
+      const startCol = col - dc * k;
+      if (!isInBounds(startRow, startCol)) continue;
+      if (!isInBounds(startRow + dr * 4, startCol + dc * 4)) continue;
+
+      let enemyCount = 0;
+      let valid = true;
+      let containsCell = false;
+      for (let i = 0; i < 5; i++) {
+        const c = toCell(startRow + dr * i, startCol + dc * i);
+        if (c === cellId) containsCell = true;
+        const chip = chipsByCell[String(c)];
+        if (chip === enemyTeamId) {
+          enemyCount++;
+        } else if (chip !== undefined) {
+          valid = false;
+          break;
+        }
+      }
+      if (valid && containsCell && enemyCount >= minEnemyCount) count++;
+    }
+  }
+  return count;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -451,16 +509,20 @@ export function decideBotAction(input: BotDecisionInput): BotGameAction {
   const mySeqCount = scoreByTeam[botTeamId] ?? 0;
   const enemySeqCount = scoreByTeam[enemyTeamId] ?? 0;
 
-  // §4-1: 6목 생성 금지 사전 필터 — normalOptions/wildCells에 적용
+  // §4-1: 6목 생성 금지 — 단, 시퀀스 완성 또는 4목 이상 라인이 생기는 경우만 예외 허용
   const normalOptions = getNormalPlayOptions(hand, chipsByCell).filter(
-    ({ cellId }) => !wouldCreateOvershoot(cellId, botTeamId, chipsByCell),
+    ({ cellId }) =>
+      !wouldCreateOvershoot(cellId, botTeamId, chipsByCell) ||
+      isOvershootPlacementAllowed(cellId, botTeamId, chipsByCell, completedSequences),
   );
 
   const twoEyeCards = hand.filter((c) => isTwoEyedJack(c));
   const oneEyeCards = hand.filter((c) => isOneEyedJack(c));
 
   const wildCells = getWildCells(chipsByCell, oneEyeLockedCell).filter(
-    (cellId) => !wouldCreateOvershoot(cellId, botTeamId, chipsByCell),
+    (cellId) =>
+      !wouldCreateOvershoot(cellId, botTeamId, chipsByCell) ||
+      isOvershootPlacementAllowed(cellId, botTeamId, chipsByCell, completedSequences),
   );
 
   const removableCells = getRemovableCells(
@@ -496,7 +558,7 @@ export function decideBotAction(input: BotDecisionInput): BotGameAction {
   }
 
   // ── 우선순위 2: 위기 방어(상대 1시퀀스 + 4개라인) ─────────────────────────
-  // §5-A: 일반 카드로 차단 가능하면 잭 절약, 불가시 1-eye jack으로 최선 칩 제거
+  // §5-A: 일반 카드로 차단 가능하면 잭 절약. 불가시 1-eye로 위협 라인이 가장 많이 걸친 칩 제거(방어적).
   if (enemySeqCount === 1) {
     const threatCells = getEnemyThreatEmptyCells(enemyTeamId, chipsByCell, 4);
 
@@ -512,12 +574,15 @@ export function decideBotAction(input: BotDecisionInput): BotGameAction {
 
     if (oneEyeCards.length > 0) {
       let bestRemoveCell: number | null = null;
+      let bestThreatLines = 0;
       let bestScore = 0;
       for (const cellId of removableCells) {
         const lineScore = maxEnemyLineAt(cellId, enemyTeamId, chipsByCell);
-        if (lineScore < 4) continue;
+        if (lineScore < 4) continue; // 4목에 참여하지 않는 칩은 제거하지 않음
+        const threatLines = countEnemyThreatLinesContaining(cellId, enemyTeamId, chipsByCell, 4);
         const score = scoreRemoval(cellId, enemyTeamId, botTeamId, chipsByCell, hand);
-        if (score > bestScore) {
+        if (threatLines > bestThreatLines || (threatLines === bestThreatLines && score > bestScore)) {
+          bestThreatLines = threatLines;
           bestScore = score;
           bestRemoveCell = cellId;
         }
@@ -561,7 +626,7 @@ export function decideBotAction(input: BotDecisionInput): BotGameAction {
   }
 
   // ── 우선순위 5: 상대 0시퀀스 4개라인 선제 차단 ──────────────────────────
-  // §5-A: 일반 카드 우선, 불가시 1-eye jack
+  // §5-A: 일반 카드 우선. 불가시 1-eye: 보통 4목에 참여하는 칩만 제거. 예외: 제거한 칸을 손패로 채워 5목 완성 가능하면 과감히 제거(공격).
   if (enemySeqCount === 0) {
     const threatCells = getEnemyThreatEmptyCells(enemyTeamId, chipsByCell, 4);
 
@@ -576,6 +641,29 @@ export function decideBotAction(input: BotDecisionInput): BotGameAction {
     }
 
     if (oneEyeCards.length > 0) {
+      // 예외: 우리 0시퀀스일 때, 제거한 칸을 손패로 채우면 5목 완성 → 공격적 제거 우선
+      let bestAggressive: number | null = null;
+      let bestAggressiveScore = 0;
+      for (const cellId of removableCells) {
+        const gain = selfGainScoreAfterRemoval(cellId, botTeamId, chipsByCell, hand);
+        if (gain >= 30) {
+          const score = scoreRemoval(cellId, enemyTeamId, botTeamId, chipsByCell, hand);
+          if (score > bestAggressiveScore) {
+            bestAggressiveScore = score;
+            bestAggressive = cellId;
+          }
+        }
+      }
+      if (bestAggressive !== null) {
+        return {
+          type: "TURN_PLAY_JACK_REMOVE",
+          expectedVersion,
+          cardId: oneEyeCards[0],
+          removeCellId: bestAggressive,
+        };
+      }
+
+      // 기본: 4목에 참여하는 상대 칩만 제거(쌩뚱맞은 칩 제거 방지)
       let bestRemoveCell: number | null = null;
       let bestScore = 0;
       for (const cellId of removableCells) {
@@ -617,6 +705,7 @@ export function decideBotAction(input: BotDecisionInput): BotGameAction {
   }
 
   // ── 우선순위 7: 복합 수 — 1-eye 제거 후 자팀 4개이상 라인 가능(§5-B) ─────
+  // 4목에 참여하는 칩만 제거하거나, 제거 후 우리 5목 완성(이득 30)인 경우만. 쌩뚱맞은 칩 제거 방지.
   if (oneEyeCards.length > 0) {
     let bestComboCell: number | null = null;
     let bestComboScore = 9; // 4개짜리 이득(+10) 이상이어야 발동
@@ -624,6 +713,8 @@ export function decideBotAction(input: BotDecisionInput): BotGameAction {
     for (const cellId of removableCells) {
       const gainScore = selfGainScoreAfterRemoval(cellId, botTeamId, chipsByCell, hand);
       if (gainScore < 10) continue;
+      const inEnemy4Line = maxEnemyLineAt(cellId, enemyTeamId, chipsByCell) >= 4;
+      if (!inEnemy4Line && gainScore < 30) continue; // 4목 미참여이고 5목 이득도 없으면 제거 안 함
       const totalScore = scoreRemoval(cellId, enemyTeamId, botTeamId, chipsByCell, hand);
       if (totalScore > bestComboScore) {
         bestComboScore = totalScore;
