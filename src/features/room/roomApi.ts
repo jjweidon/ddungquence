@@ -5,6 +5,7 @@ import {
   getDoc,
   getDocs,
   deleteDoc,
+  deleteField,
   onSnapshot,
   serverTimestamp,
   writeBatch,
@@ -338,6 +339,7 @@ export function subscribeToRoom(
  *
  * - 참여자: joinedAt을 현재 시각으로 갱신(입장 순서 재설정) + ready/readyAt 초기화
  * - 관전자: role/status 그대로 유지, lastSeenAt만 갱신
+ * - 방이 playing/ended 상태이면 status를 "lobby"로 되돌리고 game 필드 제거(로비에서 봇 제거·나가기 등 가능)
  *
  * 게임 페이지의 "로비로" 버튼 클릭 시 navigate 전에 호출합니다.
  */
@@ -346,6 +348,13 @@ export async function returnToLobby(roomId: string): Promise<void> {
   const auth = getFirebaseAuth();
   const uid = auth.currentUser?.uid;
   if (!uid) throw new Error("로그인이 필요합니다.");
+
+  const roomRef = doc(db, "rooms", roomId);
+  const roomSnap = await getDoc(roomRef);
+  if (!roomSnap.exists()) return;
+
+  const roomData = roomSnap.data() as { status?: string };
+  const roomStatus = roomData.status;
 
   const playerRef = doc(db, "rooms", roomId, "players", uid);
   const playerSnap = await getDoc(playerRef);
@@ -356,21 +365,33 @@ export async function returnToLobby(roomId: string): Promise<void> {
 
   if (playerData.role === "spectator") {
     await setDoc(playerRef, { lastSeenAt: now }, { merge: true });
-    return;
+  } else {
+    // 참여자: 입장 시각 갱신(로비 입장 순서) + 준비 상태 초기화
+    await setDoc(playerRef, {
+      uid: playerData.uid,
+      nickname: playerData.nickname,
+      role: "participant",
+      teamId: playerData.teamId,
+      seat: playerData.seat,
+      ready: false,
+      readyAt: null,
+      joinedAt: now,
+      lastSeenAt: now,
+    } satisfies RoomPlayerDocWrite);
   }
 
-  // 참여자: 입장 시각 갱신(로비 입장 순서) + 준비 상태 초기화
-  await setDoc(playerRef, {
-    uid: playerData.uid,
-    nickname: playerData.nickname,
-    role: "participant",
-    teamId: playerData.teamId,
-    seat: playerData.seat,
-    ready: false,
-    readyAt: null,
-    joinedAt: now,
-    lastSeenAt: now,
-  } satisfies RoomPlayerDocWrite);
+  // 게임 중/종료 상태에서 돌아온 경우 방을 로비 상태로 복원(봇 제거·나가기 허용)
+  if (roomStatus === "playing" || roomStatus === "ended") {
+    await setDoc(
+      roomRef,
+      {
+        status: "lobby",
+        updatedAt: now,
+        game: deleteField(),
+      },
+      { merge: true },
+    );
+  }
 }
 
 /**
