@@ -123,6 +123,7 @@ const BoardCell = memo(function BoardCell({
   isInSequence,
   isPlayable,
   isRemovable,
+  isHint,
   isDimmed,
   jackType,
   placedAnim,
@@ -136,6 +137,8 @@ const BoardCell = memo(function BoardCell({
   isInSequence: boolean;
   isPlayable: boolean;
   isRemovable: boolean;
+  /** 이 카드가 대응하지만 이미 점유되어 놓을 수 없는 칸 (인지용, 클릭 불가) */
+  isHint: boolean;
   isDimmed: boolean;
   jackType: "wild" | "remove" | null;
   /** 방금 배치된 칩의 종류 → 배치 애니메이션 선택 */
@@ -167,6 +170,9 @@ const BoardCell = memo(function BoardCell({
         ? "animate-chip-place"
         : undefined;
 
+  // opacity: 활성 100%, 힌트(놓을 수 없지만 카드 대응 칸) 70%, 나머지 30%
+  const opacityClass = isDimmed ? "opacity-30" : isHint ? "opacity-70" : "opacity-100";
+
   return (
     <button
       type="button"
@@ -176,7 +182,7 @@ const BoardCell = memo(function BoardCell({
       className={[
         "relative overflow-hidden rounded-[2px] select-none transition-opacity duration-150",
         canClick ? "cursor-pointer" : "cursor-default",
-        isDimmed ? "opacity-30" : "opacity-100",
+        opacityClass,
         canClick && isPlayable ? "hover:brightness-110" : "",
         canClick && isRemovable ? "hover:brightness-125" : "",
       ]
@@ -322,8 +328,9 @@ function GameBoard({
       {BOARD_LAYOUT.map((cardId, idx) => {
         const isPlayable = highlight?.playable.has(idx) ?? false;
         const isRemovable = highlight?.removable.has(idx) ?? false;
-        // 카드가 선택됐고 이 셀이 활성 대상이 아니면 어둡게
-        const isDimmed = !!highlight && !isPlayable && !isRemovable;
+        const isHint = highlight?.hint.has(idx) ?? false;
+        // 카드가 선택됐을 때: 활성(playable/removable) → 밝게, hint → 살짝 밝게, 나머지 → 어둡게
+        const isDimmed = !!highlight && !isPlayable && !isRemovable && !isHint;
 
         const anim = cellAnims.get(idx);
         const placedAnim =
@@ -344,6 +351,7 @@ function GameBoard({
             isInSequence={sequenceCells.has(idx)}
             isPlayable={isPlayable}
             isRemovable={isRemovable}
+            isHint={isHint}
             isDimmed={isDimmed}
             jackType={jackType}
             placedAnim={placedAnim}

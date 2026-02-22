@@ -73,6 +73,15 @@ export function findDeadCards(hand: CardId[], chipsByCell: ChipsByCell): CardId[
 }
 
 /**
+ * 주어진 카드가 보드에서 대응하는 모든 cellId 목록 (빈 칸/점유 칸 구분 없음)
+ * 잭 카드는 보드에 없으므로 빈 배열
+ */
+export function getCardCells(cardId: CardId): number[] {
+  if (isJackCard(cardId)) return [];
+  return BASE_CARD_TO_CELLS[toMapKey(cardId)] ?? [];
+}
+
+/**
  * 주어진 카드 ID가 플레이 가능한 칸 목록 반환 (비어 있는 칸만)
  * 잭 카드는 별도 처리 필요 — 여기서는 일반/코너 카드 전용
  */

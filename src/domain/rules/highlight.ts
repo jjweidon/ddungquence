@@ -1,13 +1,15 @@
 import type { TeamId, ChipsByCell } from "../types";
 import type { CompletedSequence } from "../types";
 import { isTwoEyedJack, isOneEyedJack } from "./jacks";
-import { getPlayableCells } from "./deadCard";
+import { getPlayableCells, getCardCells } from "./deadCard";
 
 export interface CellHighlight {
   /** 칩을 놓을 수 있는 빈 칸 */
   playable: Set<number>;
   /** One-eyed Jack으로 제거 가능한 칩 칸 (상대·자기 팀 모두, 단 완성 시퀀스 제외) */
   removable: Set<number>;
+  /** 이 카드가 대응하지만 이미 점유되어 놓을 수 없는 칸 (인지용 힌트) */
+  hint: Set<number>;
 }
 
 /**
@@ -36,7 +38,7 @@ export function getHighlightForCard(
     if (oneEyeLockedCell !== undefined && oneEyeLockedCell !== null) {
       playable.delete(oneEyeLockedCell);
     }
-    return { playable, removable: new Set() };
+    return { playable, removable: new Set(), hint: new Set() };
   }
 
   if (isOneEyedJack(cardId)) {
@@ -49,10 +51,16 @@ export function getHighlightForCard(
       if (twoEyeLockedCell !== undefined && twoEyeLockedCell !== null && twoEyeLockedCell === cellId) continue;
       removable.add(cellId);
     }
-    return { playable: new Set(), removable };
+    return { playable: new Set(), removable, hint: new Set() };
   }
 
-  // 일반 카드
+  // 일반 카드: playable = 빈 칸, hint = 이 카드 대응 칸 중 이미 점유된 칸
   const playable = new Set(getPlayableCells(cardId, chipsByCell));
-  return { playable, removable: new Set() };
+  const hint = new Set<number>();
+  for (const cellId of getCardCells(cardId)) {
+    if (chipsByCell[String(cellId)] !== undefined && !playable.has(cellId)) {
+      hint.add(cellId);
+    }
+  }
+  return { playable, removable: new Set(), hint };
 }
