@@ -66,6 +66,11 @@ export default {
           "0%, 100%": { opacity: "1", transform: "scale(1)" },
           "50%": { opacity: "0.85", transform: "scale(1.05)" },
         },
+        // 새 카드 드로우: 입체로 2바퀴 회전 후 정착
+        "card-flip-in": {
+          "0%": { transform: "perspective(500px) rotateY(0deg)", opacity: "0.6" },
+          "100%": { transform: "perspective(500px) rotateY(720deg)", opacity: "1" },
+        },
       },
       animation: {
         "dq-slide-slow": "dq-slide 60s linear infinite",
@@ -75,6 +80,7 @@ export default {
         "chip-place-wild": "chip-place-wild 0.55s cubic-bezier(0.34,1.56,0.64,1) forwards",
         "chip-remove": "chip-remove 1s ease-in forwards",
         "timer-warning": "timer-warning 0.8s ease-in-out infinite",
+        "card-flip-in": "card-flip-in 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) forwards",
       },
     },
   },

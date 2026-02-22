@@ -397,6 +397,7 @@ function CardTile({
   onClick,
   width,
   height,
+  isNew,
 }: {
   cardId: string;
   selected: boolean;
@@ -404,6 +405,7 @@ function CardTile({
   onClick?: () => void;
   width: number;
   height: number;
+  isNew?: boolean;
 }) {
   return (
     <button
@@ -418,6 +420,7 @@ function CardTile({
           : "border border-white/20 hover:border-white/50",
         !isDead ? "cursor-pointer active:scale-95" : "cursor-default",
         isDead ? "opacity-35 grayscale" : "",
+        isNew ? "animate-card-flip-in" : "",
       ].join(" ")}
       aria-label={cardAltText(cardId)}
       aria-pressed={selected}
@@ -640,6 +643,26 @@ function HandSection({
   onSelectCard: (cardId: string) => void;
   layout: "mobile" | "desktop";
 }) {
+  const prevHandVersionRef = useRef<number | null>(null);
+  const [animatingIdx, setAnimatingIdx] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!hand) return;
+
+    if (prevHandVersionRef.current === null) {
+      prevHandVersionRef.current = hand.handVersion;
+      return;
+    }
+
+    if (hand.handVersion > prevHandVersionRef.current) {
+      prevHandVersionRef.current = hand.handVersion;
+      const lastIdx = hand.cardIds.length - 1;
+      setAnimatingIdx(lastIdx);
+      const timer = setTimeout(() => setAnimatingIdx(null), 950);
+      return () => clearTimeout(timer);
+    }
+  }, [hand]);
+
   const cardSize = layout === "desktop" ? HAND_CARD_DESKTOP : HAND_CARD_MOBILE;
   const gridStyle =
     layout === "desktop"
@@ -675,6 +698,7 @@ function HandSection({
               }}
               width={cardSize.width}
               height={cardSize.height}
+              isNew={idx === animatingIdx}
             />
           ))}
         </div>
