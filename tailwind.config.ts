@@ -66,6 +66,27 @@ export default {
           "0%, 100%": { opacity: "1", transform: "scale(1)" },
           "50%": { opacity: "0.85", transform: "scale(1.05)" },
         },
+        // 채팅 말풍선 등장: 아래에서 위로 페이드인
+        "speech-bubble-in": {
+          "0%": { opacity: "0", transform: "translateY(6px) scale(0.9)" },
+          "60%": { opacity: "1", transform: "translateY(-2px) scale(1.03)" },
+          "100%": { opacity: "1", transform: "translateY(0) scale(1)" },
+        },
+        // 채팅 말풍선 퇴장: 위로 페이드아웃
+        "speech-bubble-out": {
+          "0%": { opacity: "1", transform: "translateY(0) scale(1)" },
+          "100%": { opacity: "0", transform: "translateY(-8px) scale(0.9)" },
+        },
+        // 리액션 패널 슬라이드업
+        "reaction-panel-up": {
+          "0%": { transform: "translateY(100%)", opacity: "0" },
+          "100%": { transform: "translateY(0)", opacity: "1" },
+        },
+        // 리액션 패널 슬라이드다운(닫기)
+        "reaction-panel-down": {
+          "0%": { transform: "translateY(0)", opacity: "1" },
+          "100%": { transform: "translateY(100%)", opacity: "0" },
+        },
         // 새 카드 드로우: 입체로 2바퀴 회전 후 정착
         "card-flip-in": {
           "0%": { transform: "perspective(500px) rotateY(0deg)", opacity: "0.6" },
@@ -81,6 +102,10 @@ export default {
         "chip-remove": "chip-remove 1s ease-in forwards",
         "timer-warning": "timer-warning 0.8s ease-in-out infinite",
         "card-flip-in": "card-flip-in 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) forwards",
+        "speech-bubble-in": "speech-bubble-in 0.25s cubic-bezier(0.34,1.56,0.64,1) forwards",
+        "speech-bubble-out": "speech-bubble-out 0.2s ease-in forwards",
+        "reaction-panel-up": "reaction-panel-up 0.28s cubic-bezier(0.34,1.56,0.64,1) forwards",
+        "reaction-panel-down": "reaction-panel-down 0.2s ease-in forwards",
       },
     },
   },

@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useState, useRef, useCallback, memo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ensureAnonAuth } from "@/features/auth/ensureAnonAuth";
-import { subscribeToRoom, rejoinRoomAfterGameEnd } from "@/features/room/roomApi";
+import { subscribeToRoom, rejoinRoomAfterGameEnd, sendReaction } from "@/features/room/roomApi";
 import { subscribeToHand, submitTurnAction, submitBotTurnAction, getBotHand } from "@/features/game/gameApi";
 import { decideBotAction } from "@/domain/bot/botDecision";
 import { cardImageUrl, cardAltText } from "@/shared/lib/cardImage";
@@ -12,7 +12,7 @@ import { isDeadCard, getPlayableCells } from "@/domain/rules/deadCard";
 import { isTwoEyedJack, isOneEyedJack, isJack } from "@/domain/rules/jacks";
 import { getHighlightForCard } from "@/domain/rules/highlight";
 import boardLayout from "@/domain/board/board-layout.v1.json";
-import type { RoomDoc, RoomPlayerDoc, PublicGameState, TeamId } from "@/features/room/types";
+import type { RoomDoc, RoomPlayerDoc, PublicGameState, TeamId, RoomReaction } from "@/features/room/types";
 import type { PrivateHandDoc, GameAction } from "@/features/game/types";
 import { collection, getDocs } from "firebase/firestore";
 import { getFirestoreDb } from "@/lib/firebase/client";
@@ -24,6 +24,13 @@ const TURN_SECONDS = 30;
 /** 임박 경고 시작 초(이하일 때 빨간색 + 애니메이션) */
 const TURN_WARNING_AT = 5;
 
+/** 채팅 리액션: 미리 정의된 메시지 목록 */
+const REACTION_MESSAGES = ["훗", "😜", "😴", "샤갈", "썩을", "아싸", "쓰레기같은", "뚱뚱"] as const;
+/** 리액션 쿨타임(ms) */
+const REACTION_COOLDOWN_MS = 5000;
+/** 말풍선 표시 유지 시간(ms) */
+const REACTION_DISPLAY_MS = 3500;
+
 /** 손패 카드 픽셀 크기 — 모바일(작게) / 데스크톱(원래 크기). 셀·버튼·이미지 동일 적용 */
 const HAND_CARD_MOBILE = { width: 48, height: 69 };
 const HAND_CARD_DESKTOP = { width: 72, height: 104 };
@@ -31,6 +38,28 @@ const HAND_CARD_DESKTOP = { width: 72, height: 104 };
 /** 보드 셀용 SVG 이미지 경로 — 벡터라 어떤 셀 크기에도 잘림 없음 */
 function boardCardImageUrl(cardId: string): string {
   return `/cards/svg/${cardId}.svg`;
+}
+
+// ─── 말풍선 ──────────────────────────────────────────────────────
+function SpeechBubble({ message }: { message: string }) {
+  return (
+    <div
+      className={[
+        "absolute -top-8 left-1/2 -translate-x-1/2 z-[50]",
+        "whitespace-nowrap px-2.5 py-1 rounded-lg text-xs font-bold",
+        "bg-dq-charcoal border border-white/25 text-dq-white shadow-lg",
+        "pointer-events-none select-none",
+        "animate-speech-bubble-in",
+      ].join(" ")}
+    >
+      {message}
+      {/* 말풍선 꼬리 */}
+      <span
+        className="absolute -bottom-[5px] left-1/2 -translate-x-1/2 w-2.5 h-2.5 bg-dq-charcoal border-r border-b border-white/25 rotate-45"
+        aria-hidden="true"
+      />
+    </div>
+  );
 }
 
 // ─── 팀 배지 ─────────────────────────────────────────────────────
@@ -490,17 +519,32 @@ function PlayerListPanel({
   players,
   game,
   myUid,
+  reactions,
+  nowMs,
+  onOpenReactionPanel,
+  reactionCooldownUntil,
 }: {
   players: RoomPlayerDoc[];
   game: PublicGameState | undefined;
   myUid: string | null;
+  reactions?: Record<string, RoomReaction>;
+  nowMs: number;
+  onOpenReactionPanel: () => void;
+  reactionCooldownUntil: number;
 }) {
   const participants = sortParticipantsRedBlue(players);
   return (
     <div className="bg-dq-charcoal border border-white/10 rounded-2xl p-4 flex flex-col gap-3 h-full">
-      <h2 className="text-xs font-bold tracking-widest text-dq-white/50 uppercase">
-        Player List
-      </h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-xs font-bold tracking-widest text-dq-white/50 uppercase">
+          Player List
+        </h2>
+        <CooldownTriggerButton
+          onClick={onOpenReactionPanel}
+          cooldownUntil={reactionCooldownUntil}
+          nowMs={nowMs}
+        />
+      </div>
       <div className="flex flex-col gap-2">
         {participants.map((p) => {
           const isCurrentTurn = game?.currentUid === p.uid;
@@ -521,17 +565,24 @@ function PlayerListPanel({
               : p.teamId === "B"
                 ? "border-dq-blue"
                 : "border-white/20";
+          const reaction = reactions?.[p.uid];
+          const activeReactionMsg =
+            reaction && nowMs - reaction.sentAt < REACTION_DISPLAY_MS ? reaction.message : null;
           return (
             <div
               key={p.uid}
               className={[
-                "flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all",
+                "relative flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all",
                 teamBg,
                 isCurrentTurn
                   ? "border-amber-400/60 ring-1 ring-amber-400/60"
                   : "border-white/10",
               ].join(" ")}
             >
+              {/* 채팅 말풍선 */}
+              {activeReactionMsg && (
+                <SpeechBubble key={reaction!.sentAt} message={activeReactionMsg} />
+              )}
               <div
                 className={[
                   "size-8 shrink-0 rounded-md border-2 bg-dq-charcoalDeep",
@@ -569,10 +620,14 @@ function PlayerStrip({
   players,
   game,
   myUid,
+  reactions,
+  nowMs,
 }: {
   players: RoomPlayerDoc[];
   game: PublicGameState | undefined;
   myUid: string | null;
+  reactions?: Record<string, RoomReaction>;
+  nowMs: number;
 }) {
   const participants = sortParticipantsRedBlue(players);
   return (
@@ -590,17 +645,24 @@ function PlayerStrip({
             : p.teamId === "B"
               ? "bg-dq-blueLight/20"
               : "bg-dq-black";
+        const reaction = reactions?.[p.uid];
+        const activeReactionMsg =
+          reaction && nowMs - reaction.sentAt < REACTION_DISPLAY_MS ? reaction.message : null;
         return (
           <div
             key={p.uid}
             className={[
-              "flex flex-col items-center px-2 py-0.5 rounded-xl border min-w-0",
+              "relative flex flex-col items-center px-2 py-0.5 rounded-xl border min-w-0",
               teamBg,
               isCurrentTurn
                 ? "border-amber-400 ring-1 ring-amber-400"
                 : "border-white/10",
             ].join(" ")}
           >
+            {/* 채팅 말풍선 */}
+            {activeReactionMsg && (
+              <SpeechBubble key={reaction!.sentAt} message={activeReactionMsg} />
+            )}
             <span
               className={[
                 "text-xs truncate w-full text-center px-1.5 rounded",
@@ -772,6 +834,142 @@ function ActionBar({
     <div className={`w-full ${barHeight} rounded-lg lg:rounded-xl bg-dq-red/10 border border-dq-red/30 flex items-center justify-center px-3 lg:px-4`}>
       <span className={`text-dq-redLight ${textSize} font-medium`}>{hint}</span>
     </div>
+  );
+}
+
+// ─── 리액션 패널 (채팅 선택 토스트) ─────────────────────────────
+function ReactionPanel({
+  visible,
+  onClose,
+  onSelect,
+  cooldownUntil,
+  nowMs,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onSelect: (msg: string) => void;
+  cooldownUntil: number;
+  nowMs: number;
+}) {
+  const isOnCooldown = nowMs < cooldownUntil;
+  const cooldownProgress = isOnCooldown
+    ? Math.min(100, ((nowMs - (cooldownUntil - REACTION_COOLDOWN_MS)) / REACTION_COOLDOWN_MS) * 100)
+    : 100;
+
+  if (!visible) return null;
+
+  return (
+    <>
+      {/* 배경 오버레이 (탭으로 닫기) */}
+      <div
+        className="fixed inset-0 z-[40]"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      {/* 패널 본체 */}
+      <div
+        className={[
+          "fixed bottom-[72px] left-0 right-0 z-[45] px-4",
+          "animate-reaction-panel-up",
+        ].join(" ")}
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
+        <div className="bg-dq-charcoal border border-white/15 rounded-2xl p-4 shadow-2xl max-w-sm mx-auto">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-bold tracking-widest text-dq-white/50 uppercase">
+              반응
+            </span>
+            {isOnCooldown && (
+              <span className="text-[10px] text-dq-white/40">
+                {Math.ceil((cooldownUntil - nowMs) / 1000)}초 후 사용 가능
+              </span>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {REACTION_MESSAGES.map((msg) => (
+              <button
+                key={msg}
+                type="button"
+                disabled={isOnCooldown}
+                onClick={() => onSelect(msg)}
+                className={[
+                  "h-12 px-4 rounded-xl text-sm font-bold border transition-all whitespace-nowrap",
+                  isOnCooldown
+                    ? "bg-white/5 text-dq-white/30 border-white/5 cursor-not-allowed"
+                    : "bg-white/10 text-dq-white border-white/15 active:scale-95 hover:bg-white/20",
+                ].join(" ")}
+              >
+                {msg}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ─── 쿨타임 트리거 버튼 (원형 진행 표시기 포함) ──────────────────
+function CooldownTriggerButton({
+  onClick,
+  cooldownUntil,
+  nowMs,
+}: {
+  onClick: () => void;
+  cooldownUntil: number;
+  nowMs: number;
+}) {
+  const isOnCooldown = nowMs < cooldownUntil;
+  const progress = isOnCooldown
+    ? Math.min(100, ((nowMs - (cooldownUntil - REACTION_COOLDOWN_MS)) / REACTION_COOLDOWN_MS) * 100)
+    : 100;
+
+  const radius = 13;
+  const circumference = 2 * Math.PI * radius;
+  const dashOffset = circumference * (1 - progress / 100);
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="채팅 반응"
+      className={[
+        "relative shrink-0 size-7 rounded-xl flex items-center justify-center",
+        "bg-white/10 border border-white/15 transition-all",
+        isOnCooldown ? "opacity-60" : "hover:bg-white/20 active:scale-95",
+      ].join(" ")}
+    >
+      {/* 쿨타임 원형 진행 표시기 */}
+      {isOnCooldown && (
+        <svg
+          className="absolute inset-0 w-full h-full -rotate-90"
+          viewBox="0 0 40 40"
+          aria-hidden="true"
+        >
+          <circle
+            cx="20"
+            cy="20"
+            r={radius}
+            fill="none"
+            stroke="rgba(255,255,255,0.08)"
+            strokeWidth="2.5"
+          />
+          <circle
+            cx="20"
+            cy="20"
+            r={radius}
+            fill="none"
+            stroke="#D61F2C"
+            strokeWidth="2.5"
+            strokeDasharray={circumference}
+            strokeDashoffset={dashOffset}
+            strokeLinecap="round"
+            style={{ transition: "stroke-dashoffset 0.1s linear" }}
+          />
+        </svg>
+      )}
+      <span className="text-base select-none" aria-hidden="true">💬</span>
+    </button>
   );
 }
 
@@ -993,6 +1191,13 @@ export default function GamePage() {
   /** 남은 턴 시간(초). 내 턴일 때만 갱신, 0이 되면 자동 플레이 */
   const [turnSecondsLeft, setTurnSecondsLeft] = useState<number | null>(null);
 
+  /** 리액션 패널 표시 여부 */
+  const [showReactionPanel, setShowReactionPanel] = useState(false);
+  /** 리액션 쿨타임 만료 시각(ms). 현재 시각 < cooldownUntil 이면 쿨타임 중 */
+  const [reactionCooldownUntil, setReactionCooldownUntil] = useState(0);
+  /** 말풍선 렌더링 갱신용 — 500ms 주기로 현재 시각 추적 */
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
   // roomId 변경 시 시퀀스 팝업 초기화 플래그 리셋 (다른 방 진입 시 새 게임으로 처리)
   useEffect(() => {
     hasInitializedSeqRef.current = false;
@@ -1057,6 +1262,26 @@ export default function GamePage() {
       unsubHandRef.current?.();
     };
   }, [roomId, router, loadPlayers]);
+
+  // 말풍선 표시 만료 체크용 — 500ms 주기 인터벌
+  useEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), 500);
+    return () => clearInterval(id);
+  }, []);
+
+  const handleSendReaction = useCallback(
+    async (message: string) => {
+      if (Date.now() < reactionCooldownUntil) return;
+      setReactionCooldownUntil(Date.now() + REACTION_COOLDOWN_MS);
+      setShowReactionPanel(false);
+      try {
+        await sendReaction(roomId, message);
+      } catch {
+        // 리액션 실패는 무시
+      }
+    },
+    [reactionCooldownUntil, roomId],
+  );
 
   const game = room?.game;
   const isMyTurn = !!uid && game?.currentUid === uid;
@@ -1442,7 +1667,15 @@ export default function GamePage() {
       <div className="hidden lg:grid flex-1 grid-cols-[300px_minmax(0,1fr)_360px] gap-6 p-6 overflow-visible min-h-0">
         {/* 좌측: 플레이어 목록 */}
         <aside className="overflow-y-auto">
-          <PlayerListPanel players={players} game={game} myUid={uid} />
+          <PlayerListPanel
+            players={players}
+            game={game}
+            myUid={uid}
+            reactions={room?.reactions}
+            nowMs={nowMs}
+            onOpenReactionPanel={() => setShowReactionPanel(true)}
+            reactionCooldownUntil={reactionCooldownUntil}
+          />
         </aside>
 
         {/* 중앙: 게임 보드 */}
@@ -1493,8 +1726,28 @@ export default function GamePage() {
       {/* ══════════════════════════════════════════════════════════ */}
       <div className="flex-1 flex flex-col gap-2 px-4 pt-2 overflow-visible lg:hidden min-h-0">
         {/* shrink-0: 플레이어 스트립은 고정 높이 */}
-        <div className="shrink-0">
-          <PlayerStrip players={players} game={game} myUid={uid} />
+        {/* 스와이프 업으로 리액션 패널 열기 */}
+        <div
+          className="shrink-0"
+          onTouchStart={(e) => {
+            const t = e.touches[0];
+            (e.currentTarget as HTMLDivElement).dataset.touchStartY = String(t.clientY);
+          }}
+          onTouchEnd={(e) => {
+            const startY = Number((e.currentTarget as HTMLDivElement).dataset.touchStartY ?? 0);
+            const endY = e.changedTouches[0].clientY;
+            if (startY - endY > 30 && me?.role !== "spectator") {
+              setShowReactionPanel(true);
+            }
+          }}
+        >
+          <PlayerStrip
+            players={players}
+            game={game}
+            myUid={uid}
+            reactions={room?.reactions}
+            nowMs={nowMs}
+          />
         </div>
 
         {/* 보드: 남은 공간 전체를 채움 */}
@@ -1530,16 +1783,37 @@ export default function GamePage() {
         className="shrink-0 px-4 py-2 bg-dq-charcoal border-t border-white/10 lg:hidden"
         style={{ paddingBottom: "calc(8px + env(safe-area-inset-bottom))" }}
       >
-        <ActionBar
-          isMyTurn={isMyTurn}
-          selectedCard={selectedCard}
-          txPending={txPending}
-          txError={txError}
-          onClearError={() => setTxError(null)}
-          gameEnded={gameEnded}
-          isSpectator={me?.role === "spectator"}
-        />
+        <div className="flex items-center gap-2">
+          {/* 리액션 트리거 버튼 (관전자 제외) */}
+          {me?.role !== "spectator" && (
+            <CooldownTriggerButton
+              onClick={() => setShowReactionPanel(true)}
+              cooldownUntil={reactionCooldownUntil}
+              nowMs={nowMs}
+            />
+          )}
+          <div className="flex-1">
+            <ActionBar
+              isMyTurn={isMyTurn}
+              selectedCard={selectedCard}
+              txPending={txPending}
+              txError={txError}
+              onClearError={() => setTxError(null)}
+              gameEnded={gameEnded}
+              isSpectator={me?.role === "spectator"}
+            />
+          </div>
+        </div>
       </div>
+
+      {/* 리액션 패널 (모바일 + 데스크톱 공용) */}
+      <ReactionPanel
+        visible={showReactionPanel}
+        onClose={() => setShowReactionPanel(false)}
+        onSelect={handleSendReaction}
+        cooldownUntil={reactionCooldownUntil}
+        nowMs={nowMs}
+      />
     </main>
   );
 }

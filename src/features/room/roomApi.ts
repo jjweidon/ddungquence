@@ -625,3 +625,20 @@ export async function leaveRoom(roomId: string): Promise<void> {
 
   await batch.commit();
 }
+
+/**
+ * 빠른 채팅 리액션을 전송합니다.
+ * rooms/{roomId} 문서의 reactions 필드를 업데이트합니다(추가 구독 없음).
+ * 쿨타임 체크는 클라이언트에서 수행합니다.
+ */
+export async function sendReaction(roomId: string, message: string): Promise<void> {
+  const db = getFirestoreDb();
+  const auth = getFirebaseAuth();
+  const uid = auth.currentUser?.uid;
+  if (!uid) throw new Error("로그인 필요");
+
+  const roomRef = doc(db, "rooms", roomId);
+  await updateDoc(roomRef, {
+    [`reactions.${uid}`]: { message, sentAt: Date.now() },
+  });
+}

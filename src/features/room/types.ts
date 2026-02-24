@@ -56,6 +56,13 @@ export interface PublicGameState {
   turnStartedAt?: Timestamp;
 }
 
+/** 게임 중 플레이어가 보내는 빠른 채팅 리액션 */
+export interface RoomReaction {
+  message: string;
+  /** Date.now() 기준 ms 타임스탬프 */
+  sentAt: number;
+}
+
 export interface RoomDoc {
   roomCode: string;
   status: "lobby" | "playing" | "ended";
@@ -70,6 +77,8 @@ export interface RoomDoc {
     oneEyedJackCanBreakSequence: boolean;
   };
   game?: PublicGameState;
+  /** uid → 최신 리액션. public 문서 구독 재활용(추가 구독 없음) */
+  reactions?: Record<string, RoomReaction>;
 }
 
 export interface RoomCodeDoc {
