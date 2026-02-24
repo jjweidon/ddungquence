@@ -25,7 +25,7 @@ const TURN_SECONDS = 30;
 const TURN_WARNING_AT = 5;
 
 /** 채팅 리액션: 미리 정의된 메시지 목록 */
-const REACTION_MESSAGES = ["훗", "😜", "😴", "샤갈", "썩을", "아싸", "쓰레기같은", "뚱뚱"] as const;
+const REACTION_MESSAGES = ["😮", "😜", "😴", "훗", "샤갈", "썩을", "아싸", "쓰레기같은", "뚱뚱"] as const;
 /** 리액션 쿨타임(ms) */
 const REACTION_COOLDOWN_MS = 5000;
 /** 말풍선 표시 유지 시간(ms) */
@@ -41,23 +41,45 @@ function boardCardImageUrl(cardId: string): string {
 }
 
 // ─── 말풍선 ──────────────────────────────────────────────────────
-function SpeechBubble({ message }: { message: string }) {
-  return (
+function SpeechBubble({
+  message,
+  /** 모바일: 셀 정중앙에 겹침, 살짝 위로 */
+  overlay = false,
+}: {
+  message: string;
+  overlay?: boolean;
+}) {
+  const bubbleContent = (
     <div
       className={[
-        "absolute -top-8 left-1/2 -translate-x-1/2 z-[50]",
-        "whitespace-nowrap px-2.5 py-1 rounded-lg text-xs font-bold",
-        "bg-dq-charcoal border border-white/25 text-dq-white shadow-lg",
+        "relative whitespace-nowrap px-2.5 py-1 rounded-lg text-xs font-bold",
+        "bg-dq-white border border-black/10 text-dq-charcoalDeep shadow-lg",
         "pointer-events-none select-none",
         "animate-speech-bubble-in",
       ].join(" ")}
     >
       {message}
-      {/* 말풍선 꼬리 */}
       <span
-        className="absolute -bottom-[5px] left-1/2 -translate-x-1/2 w-2.5 h-2.5 bg-dq-charcoal border-r border-b border-white/25 rotate-45"
+        className="absolute -bottom-[5px] left-1/2 -translate-x-1/2 w-2.5 h-2.5 bg-dq-white border-r border-b border-black/10 rotate-45"
         aria-hidden="true"
       />
+    </div>
+  );
+
+  if (overlay) {
+    return (
+      <div
+        className="absolute inset-0 flex items-center justify-center z-[50] pointer-events-none"
+        aria-hidden
+      >
+        <div className="-translate-y-8">{bubbleContent}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="absolute -top-8 left-1/2 -translate-x-1/2 z-[50]">
+      {bubbleContent}
     </div>
   );
 }
@@ -579,30 +601,32 @@ function PlayerListPanel({
                   : "border-white/10",
               ].join(" ")}
             >
-              {/* 채팅 말풍선 */}
-              {activeReactionMsg && (
-                <SpeechBubble key={reaction!.sentAt} message={activeReactionMsg} />
-              )}
-              <div
-                className={[
-                  "size-8 shrink-0 rounded-md border-2 bg-dq-charcoalDeep",
-                  teamBorder,
-                ].join(" ")}
-              />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1 flex-wrap">
-                  {isMe && (
-                    <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-white/15 text-dq-white border border-white/20">
-                      ME
-                    </span>
-                  )}
-                  {isCurrentTurn && (
-                    <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-400/20 text-amber-400 border border-amber-400/30">
-                      TURN
-                    </span>
-                  )}
+              {/* 말풍선 위치 기준: 아바타+이름 영역의 가로 중앙 */}
+              <div className="relative flex items-center gap-3 flex-1 min-w-0">
+                {activeReactionMsg && (
+                  <SpeechBubble key={reaction!.sentAt} message={activeReactionMsg} />
+                )}
+                <div
+                  className={[
+                    "size-8 shrink-0 rounded-md border-2 bg-dq-charcoalDeep",
+                    teamBorder,
+                  ].join(" ")}
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {isMe && (
+                      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-white/15 text-dq-white border border-white/20">
+                        ME
+                      </span>
+                    )}
+                    {isCurrentTurn && (
+                      <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-400/20 text-amber-400 border border-amber-400/30">
+                        TURN
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm text-dq-white/90 truncate mt-0.5">{p.nickname}</p>
                 </div>
-                <p className="text-sm text-dq-white/90 truncate mt-0.5">{p.nickname}</p>
               </div>
               {lastCardId && (
                 <LastCardThumb cardId={lastCardId} size="md" />
@@ -659,9 +683,13 @@ function PlayerStrip({
                 : "border-white/10",
             ].join(" ")}
           >
-            {/* 채팅 말풍선 */}
+            {/* 말풍선: 모바일은 셀 정중앙에 겹침, 꼬리 없음 */}
             {activeReactionMsg && (
-              <SpeechBubble key={reaction!.sentAt} message={activeReactionMsg} />
+              <SpeechBubble
+                key={reaction!.sentAt}
+                message={activeReactionMsg}
+                overlay
+              />
             )}
             <span
               className={[
