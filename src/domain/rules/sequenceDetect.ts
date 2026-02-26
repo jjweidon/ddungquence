@@ -33,12 +33,30 @@ function isInBounds(row: number, col: number): boolean {
   return row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE;
 }
 
+/** 시퀀스가 속한 "라인" 식별: 같은 방향·같은 직선이면 동일한 key */
+function getLineKey(cells: number[]): { dir: number; lineId: number } | null {
+  if (cells.length !== SEQUENCE_LEN) return null;
+  const rows = cells.map((c) => Math.floor(c / BOARD_SIZE));
+  const cols = cells.map((c) => c % BOARD_SIZE);
+  const dr = rows[1] - rows[0];
+  const dc = cols[1] - cols[0];
+  if (dr === 0 && dc === 1) return { dir: 0, lineId: rows[0] }; // →
+  if (dr === 1 && dc === 0) return { dir: 1, lineId: cols[0] }; // ↓
+  if (dr === 1 && dc === 1) return { dir: 2, lineId: rows[0] - cols[0] }; // ↘
+  if (dr === 1 && dc === -1) return { dir: 3, lineId: rows[0] + cols[0] }; // ↙
+  return null;
+}
+
+function sameLine(a: number[], b: number[]): boolean {
+  const ka = getLineKey(a);
+  const kb = getLineKey(b);
+  return ka !== null && kb !== null && ka.dir === kb.dir && ka.lineId === kb.lineId;
+}
+
 /**
  * 현재 보드 상태에서 모든 팀의 시퀀스 후보를 탐색한다.
- * 방향 4개(→ ↓ ↘ ↙)를 검사하며, 코너 칸도 일반 칸과 동일하게 취급한다.
- *
- * 6목 정책: 5칸 후보의 시작 직전 또는 끝 직후 칸에 동일 팀 칩이 있으면
- * 해당 후보는 6개 이상 연속의 일부이므로 제외한다.
+ * 방향 4개(→ ↓ ↘ ↙)를 검사하며, 6개 이상 연속인 줄도 5칸 윈도우는 후보에 포함한다.
+ * (같은 라인 내 겹침 제거는 detectNewSequences에서 처리)
  */
 function findAllCandidates(chipsByCell: ChipsByCell): DetectedSequence[] {
   const candidates: DetectedSequence[] = [];
@@ -78,23 +96,7 @@ function findAllCandidates(chipsByCell: ChipsByCell): DetectedSequence[] {
         }
 
         if (valid && cells.length === SEQUENCE_LEN && teamId !== undefined) {
-          // 6목 체크: 시작 직전 칸에 같은 팀 칩이 있으면 6개 이상 연속 → 제외
-          const prevRow = row - dr;
-          const prevCol = col - dc;
-          const hasPrev =
-            isInBounds(prevRow, prevCol) &&
-            (chipsByCell[String(cellId(prevRow, prevCol))] as TeamId | undefined) === teamId;
-
-          // 6목 체크: 끝 직후 칸에 같은 팀 칩이 있으면 6개 이상 연속 → 제외
-          const nextRow = row + dr * SEQUENCE_LEN;
-          const nextCol = col + dc * SEQUENCE_LEN;
-          const hasNext =
-            isInBounds(nextRow, nextCol) &&
-            (chipsByCell[String(cellId(nextRow, nextCol))] as TeamId | undefined) === teamId;
-
-          if (!hasPrev && !hasNext) {
-            candidates.push({ teamId, cells: [...cells].sort((a, b) => a - b) });
-          }
+          candidates.push({ teamId, cells: [...cells].sort((a, b) => a - b) });
         }
       }
     }
@@ -109,8 +111,8 @@ function findAllCandidates(chipsByCell: ChipsByCell): DetectedSequence[] {
  * 변형 규칙 고정:
  * - 코너(0, 9, 90, 99)도 칩이 놓인 경우 시퀀스 구성 칸으로 포함
  * - 이미 completedSequences에 존재하는 라인은 무시
- * - 새 시퀀스와 기존 completedSequence가 2칸 이상 겹치면 거부
- *   (2시퀀스 모드: 1칸 공유 허용)
+ * - 같은 방향(같은 라인): 기존 시퀀스와 칩을 1칸도 공유하면 안 됨. 같은 라인에서는 겹치지 않는 5칸만 추가 인정(예: 10칸 일렬 → [0-4],[5-9] 2시퀀스)
+ * - 다른 방향(교차): 기존 시퀀스와 1칸 공유 허용, 2칸 이상 겹치면 거부
  *
  * @param chipsByCell   현재 보드 칩 점유 맵
  * @param completedSequences  이미 완성된 시퀀스 목록
@@ -133,19 +135,45 @@ export function detectNewSequences(
     }
   }
 
-  return unique.filter((candidate) => {
-    // 이미 completedSequences에 있는 라인 제외
+  const allowed = unique.filter((candidate) => {
     const alreadyCompleted = completedSequences.some((seq) =>
       isSameSequence(seq.cells, candidate.cells),
     );
     if (alreadyCompleted) return false;
 
-    // 기존 시퀀스와 2칸 이상 겹치면 거부
-    const tooMuchOverlap = completedSequences.some(
-      (seq) => overlapCount(seq.cells, candidate.cells) >= 2,
-    );
-    return !tooMuchOverlap;
+    for (const seq of completedSequences) {
+      const overlap = overlapCount(seq.cells, candidate.cells);
+      if (sameLine(seq.cells, candidate.cells)) {
+        if (overlap >= 1) return false;
+      } else {
+        if (overlap >= 2) return false;
+      }
+    }
+    return true;
   });
+
+  // 같은 라인 내에서 서로 겹치는 후보 제거: 라인별로 겹치지 않는 집합만 선택
+  const byLine = new Map<string, DetectedSequence[]>();
+  for (const c of allowed) {
+    const k = getLineKey(c.cells);
+    if (!k) continue;
+    const key = `${c.teamId},${k.dir},${k.lineId}`;
+    if (!byLine.has(key)) byLine.set(key, []);
+    byLine.get(key)!.push(c);
+  }
+
+  const result: DetectedSequence[] = [];
+  for (const list of byLine.values()) {
+    list.sort((a, b) => Math.min(...a.cells) - Math.min(...b.cells));
+    const taken: DetectedSequence[] = [];
+    for (const c of list) {
+      const overlapsTaken = taken.some((t) => overlapCount(t.cells, c.cells) >= 1);
+      if (!overlapsTaken) taken.push(c);
+    }
+    result.push(...taken);
+  }
+
+  return result;
 }
 
 /**
