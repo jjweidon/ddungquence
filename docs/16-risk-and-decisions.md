@@ -74,6 +74,11 @@
 - 영향 범위: `src/domain/rules/sequenceDetect.ts`, `src/domain/__tests__/sequenceDetect.test.ts`, `.cursor/rules/game-domain-rules.mdc`, `docs/01-game-rules.md`
 - 후속 작업: 없음
 
+### [D-20260227-01] 관전자 손패 보기
+- 맥락: 관전자가 플레이어 목록에서 참여자를 선택하면 해당 참여자의 손패를 읽기 전용으로 표시
+- 결정: 관전 시 선택한 참여자 uid로만 subscribeToHand 호출. Firestore 규칙 강화 시 같은 방 관전자가 참여자 privateHands read 허용 필요.
+- 영향 범위: game page(관전자 손패 영역·플레이어 클릭 토글), Firestore 규칙(추후)
+
 ## 3) 핵심 리스크
 
 ### R-1 비용 폭증(Reads)

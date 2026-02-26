@@ -545,6 +545,9 @@ function PlayerListPanel({
   nowMs,
   onOpenReactionPanel,
   reactionCooldownUntil,
+  isSpectator,
+  spectatorViewingHandUid,
+  onToggleSpectatorHand,
 }: {
   players: RoomPlayerDoc[];
   game: PublicGameState | undefined;
@@ -553,6 +556,9 @@ function PlayerListPanel({
   nowMs: number;
   onOpenReactionPanel: () => void;
   reactionCooldownUntil: number;
+  isSpectator?: boolean;
+  spectatorViewingHandUid?: string | null;
+  onToggleSpectatorHand?: (uid: string) => void;
 }) {
   const participants = sortParticipantsRedBlue(players);
   return (
@@ -571,6 +577,7 @@ function PlayerListPanel({
         {participants.map((p) => {
           const isCurrentTurn = game?.currentUid === p.uid;
           const isMe = p.uid === myUid;
+          const isViewingHand = isSpectator && spectatorViewingHandUid === p.uid;
           const lastCardId =
             p.seat !== undefined && game?.discardTopBySeat
               ? game.discardTopBySeat[String(p.seat)] ?? null
@@ -590,15 +597,24 @@ function PlayerListPanel({
           const reaction = reactions?.[p.uid];
           const activeReactionMsg =
             reaction && nowMs - reaction.sentAt < REACTION_DISPLAY_MS ? reaction.message : null;
+          const handleRowClick = isSpectator && onToggleSpectatorHand
+            ? () => onToggleSpectatorHand(p.uid)
+            : undefined;
           return (
             <div
               key={p.uid}
+              role={handleRowClick ? "button" : undefined}
+              tabIndex={handleRowClick ? 0 : undefined}
+              onClick={handleRowClick}
+              onKeyDown={handleRowClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleRowClick(); } } : undefined}
               className={[
                 "relative flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all",
                 teamBg,
                 isCurrentTurn
                   ? "border-amber-400/60 ring-1 ring-amber-400/60"
                   : "border-white/10",
+                isSpectator ? "cursor-pointer hover:border-white/30" : "",
+                isViewingHand ? "ring-2 ring-dq-redLight/70 border-dq-redLight/50" : "",
               ].join(" ")}
             >
               {/* 말풍선 위치 기준: 아바타+이름 영역의 가로 중앙 */}
@@ -624,6 +640,18 @@ function PlayerListPanel({
                         TURN
                       </span>
                     )}
+                    {isViewingHand && (
+                      <span
+                        className="inline-flex items-center justify-center size-6 rounded-full bg-dq-red/20 text-dq-redLight border border-dq-red/30"
+                        title="손패 보기 중"
+                        aria-label="손패 보기 중"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                          <circle cx="12" cy="12" r="3" />
+                        </svg>
+                      </span>
+                    )}
                   </div>
                   <p className="text-sm text-dq-white/90 truncate mt-0.5">{p.nickname}</p>
                 </div>
@@ -646,12 +674,18 @@ function PlayerStrip({
   myUid,
   reactions,
   nowMs,
+  isSpectator,
+  spectatorViewingHandUid,
+  onToggleSpectatorHand,
 }: {
   players: RoomPlayerDoc[];
   game: PublicGameState | undefined;
   myUid: string | null;
   reactions?: Record<string, RoomReaction>;
   nowMs: number;
+  isSpectator?: boolean;
+  spectatorViewingHandUid?: string | null;
+  onToggleSpectatorHand?: (uid: string) => void;
 }) {
   const participants = sortParticipantsRedBlue(players);
   return (
@@ -659,6 +693,7 @@ function PlayerStrip({
       {participants.map((p) => {
         const isCurrentTurn = game?.currentUid === p.uid;
         const isMe = p.uid === myUid;
+        const isViewingHand = isSpectator && spectatorViewingHandUid === p.uid;
         const lastCardId =
           p.seat !== undefined && game?.discardTopBySeat
             ? game.discardTopBySeat[String(p.seat)] ?? null
@@ -672,15 +707,24 @@ function PlayerStrip({
         const reaction = reactions?.[p.uid];
         const activeReactionMsg =
           reaction && nowMs - reaction.sentAt < REACTION_DISPLAY_MS ? reaction.message : null;
+        const handleStripClick = isSpectator && onToggleSpectatorHand
+          ? () => onToggleSpectatorHand(p.uid)
+          : undefined;
         return (
           <div
             key={p.uid}
+            role={handleStripClick ? "button" : undefined}
+            tabIndex={handleStripClick ? 0 : undefined}
+            onClick={handleStripClick}
+            onKeyDown={handleStripClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleStripClick(); } } : undefined}
             className={[
               "relative flex flex-col items-center px-2 py-0.5 rounded-xl border min-w-0",
               teamBg,
               isCurrentTurn
                 ? "border-amber-400 ring-1 ring-amber-400"
                 : "border-white/10",
+              isSpectator ? "cursor-pointer hover:border-white/30" : "",
+              isViewingHand ? "ring-2 ring-dq-redLight/70 border-dq-redLight/50" : "",
             ].join(" ")}
           >
             {/* 말풍선: 모바일은 셀 정중앙에 겹침, 꼬리 없음 */}
@@ -717,6 +761,7 @@ function HandSection({
   selectedCard,
   onSelectCard,
   layout,
+  spectatorView,
 }: {
   hand: PrivateHandDoc | null;
   game: PublicGameState | undefined;
@@ -724,9 +769,11 @@ function HandSection({
   selectedCard: string | null;
   onSelectCard: (cardId: string) => void;
   layout: "mobile" | "desktop";
+  spectatorView?: { player: RoomPlayerDoc };
 }) {
   const prevHandVersionRef = useRef<number | null>(null);
   const [animatingIdx, setAnimatingIdx] = useState<number | null>(null);
+  const isReadOnly = !!spectatorView;
 
   useEffect(() => {
     if (!hand) return;
@@ -756,15 +803,26 @@ function HandSection({
       {layout === "desktop" && (
         <div className="flex items-center justify-between">
           <h2 className="text-xs font-bold tracking-widest text-dq-white/50 uppercase">
-            My Card
+            {spectatorView ? `${spectatorView.player.nickname}의 손패` : "My Card"}
           </h2>
-          {me && (
+          {me && !spectatorView && (
             <div className="flex items-center gap-1.5">
               <TeamBadge teamId={me.teamId} />
               <span className="text-xs text-dq-white/50">{me.nickname}</span>
             </div>
           )}
+          {spectatorView && (
+            <div className="flex items-center gap-1.5">
+              <TeamBadge teamId={spectatorView.player.teamId} />
+              <span className="text-xs text-dq-white/50">{spectatorView.player.nickname}</span>
+            </div>
+          )}
         </div>
+      )}
+      {layout === "mobile" && spectatorView && (
+        <p className="text-[10px] font-bold tracking-widest text-dq-white/50 uppercase">
+          {spectatorView.player.nickname}의 손패
+        </p>
       )}
       {hand ? (
         <div className="grid overflow-visible justify-center lg:justify-start" style={gridStyle}>
@@ -772,8 +830,8 @@ function HandSection({
             <CardTile
               key={`${cardId}-${idx}`}
               cardId={cardId}
-              selected={selectedCard === cardId}
-              onClick={() => onSelectCard(cardId)}
+              selected={!isReadOnly && selectedCard === cardId}
+              onClick={isReadOnly ? undefined : () => onSelectCard(cardId)}
               width={cardSize.width}
               height={cardSize.height}
               isNew={idx === animatingIdx}
@@ -1191,6 +1249,7 @@ export default function GamePage() {
 
   const unsubRoomRef = useRef<(() => void) | null>(null);
   const unsubHandRef = useRef<(() => void) | null>(null);
+  const unsubWatchedHandRef = useRef<(() => void) | null>(null);
   const prevSeqCountRef = useRef<number>(0);
   const prevPhaseRef = useRef<string>("setup");
   const hasInitializedSeqRef = useRef(false);
@@ -1218,6 +1277,11 @@ export default function GamePage() {
   const [showResultOverlay, setShowResultOverlay] = useState(false);
   /** 남은 턴 시간(초). 내 턴일 때만 갱신, 0이 되면 자동 플레이 */
   const [turnSecondsLeft, setTurnSecondsLeft] = useState<number | null>(null);
+
+  /** 관전자가 손패를 볼 플레이어 uid. null이면 손패 영역 숨김. 같은 플레이어 재클릭 시 null로 토글 */
+  const [spectatorViewingHandUid, setSpectatorViewingHandUid] = useState<string | null>(null);
+  /** 관전자가 선택한 플레이어의 손패(실시간 구독) */
+  const [watchedHand, setWatchedHand] = useState<PrivateHandDoc | null>(null);
 
   /** 리액션 패널 표시 여부 */
   const [showReactionPanel, setShowReactionPanel] = useState(false);
@@ -1291,6 +1355,21 @@ export default function GamePage() {
     };
   }, [roomId, router, loadPlayers]);
 
+  // 관전자가 선택한 플레이어 손패 구독 (선택 시에만 구독, 해제 시 정리)
+  useEffect(() => {
+    if (!spectatorViewingHandUid || !roomId) {
+      setWatchedHand(null);
+      unsubWatchedHandRef.current?.();
+      unsubWatchedHandRef.current = null;
+      return;
+    }
+    unsubWatchedHandRef.current = subscribeToHand(roomId, spectatorViewingHandUid, setWatchedHand);
+    return () => {
+      unsubWatchedHandRef.current?.();
+      unsubWatchedHandRef.current = null;
+    };
+  }, [roomId, spectatorViewingHandUid]);
+
   // 말풍선 표시 만료 체크용 — 500ms 주기 인터벌
   useEffect(() => {
     const id = setInterval(() => setNowMs(Date.now()), 500);
@@ -1310,6 +1389,11 @@ export default function GamePage() {
     },
     [reactionCooldownUntil, roomId],
   );
+
+  /** 관전자: 플레이어 클릭 시 해당 플레이어 손패 보기 토글(같은 플레이어 재클릭 시 숨김) */
+  const handleToggleSpectatorHand = useCallback((uid: string) => {
+    setSpectatorViewingHandUid((prev) => (prev === uid ? null : uid));
+  }, []);
 
   const game = room?.game;
   const isMyTurn = !!uid && game?.currentUid === uid;
@@ -1703,6 +1787,9 @@ export default function GamePage() {
             nowMs={nowMs}
             onOpenReactionPanel={() => setShowReactionPanel(true)}
             reactionCooldownUntil={reactionCooldownUntil}
+            isSpectator={me?.role === "spectator"}
+            spectatorViewingHandUid={spectatorViewingHandUid}
+            onToggleSpectatorHand={handleToggleSpectatorHand}
           />
         </aside>
 
@@ -1737,6 +1824,20 @@ export default function GamePage() {
               layout="desktop"
             />
           )}
+          {me?.role === "spectator" && spectatorViewingHandUid && (() => {
+            const viewingPlayer = players.find((p) => p.uid === spectatorViewingHandUid);
+            return viewingPlayer ? (
+              <HandSection
+                hand={watchedHand}
+                game={game}
+                me={undefined}
+                selectedCard={null}
+                onSelectCard={() => {}}
+                layout="desktop"
+                spectatorView={{ player: viewingPlayer }}
+              />
+            ) : null;
+          })()}
           <ActionBar
             isMyTurn={isMyTurn}
             selectedCard={selectedCard}
@@ -1775,6 +1876,9 @@ export default function GamePage() {
             myUid={uid}
             reactions={room?.reactions}
             nowMs={nowMs}
+            isSpectator={me?.role === "spectator"}
+            spectatorViewingHandUid={spectatorViewingHandUid}
+            onToggleSpectatorHand={handleToggleSpectatorHand}
           />
         </div>
 
@@ -1804,6 +1908,22 @@ export default function GamePage() {
             />
           </div>
         )}
+        {me?.role === "spectator" && spectatorViewingHandUid && (() => {
+          const viewingPlayer = players.find((p) => p.uid === spectatorViewingHandUid);
+          return viewingPlayer ? (
+            <div className="shrink-0 overflow-visible">
+              <HandSection
+                hand={watchedHand}
+                game={game}
+                me={undefined}
+                selectedCard={null}
+                onSelectCard={() => {}}
+                layout="mobile"
+                spectatorView={{ player: viewingPlayer }}
+              />
+            </div>
+          ) : null;
+        })()}
       </div>
 
       {/* 모바일 하단 고정 액션바 */}
