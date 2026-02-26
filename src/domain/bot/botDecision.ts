@@ -3,10 +3,11 @@
  *
  * docs/20-bots.md §2 우선순위 구현:
  *  1. 승리(2nd 시퀀스 완성) — 일반카드 or Two-eyed Jack
- *  2. 위기 방어(상대 1시퀀스 + 4개라인 차단) — 일반카드 우선, 불가시 One-eyed Jack (§5-A)
+ *  1.5. 6목 자가 복구로 2시퀀스(승리) — One-eyed Jack(자팀 칩 제거, 최우선)
+ *  2. 위기 방어(상대 1시퀀스 + 4개라인 차단) — 일반카드 우선, 불가시 One-eyed Jack (§5-A, 3목→2목 겹침→scoreRemoval)
  *  3. 첫 시퀀스 완성 — 일반카드
  *  4. 첫 시퀀스 완성 — Two-eyed Jack
- *  5. 상대 0시퀀스 4개라인 선제 차단 — 일반카드 우선, 불가시 One-eyed Jack (§5-A)
+ *  5. 상대 0시퀀스 4개라인 선제 차단 — 일반카드 우선, 불가시 One-eyed Jack (§5-A, 4목 교차 크리티컬→scoreRemoval)
  *  6. 6목 자가 복구 → 시퀀스 완성 — One-eyed Jack(자팀 칩 제거)
  *  7. 복합 수: One-eyed Jack 제거 후 자팀 4개이상 라인 형성 가능 (§5-B)
  *  8. 4개짜리 라인 형성 — 일반카드
@@ -365,7 +366,43 @@ function findSixOvershootRepairCell(
   completedSequences: CompletedSequence[],
   twoEyeLockedCell: number | null | undefined,
 ): number | null {
+  return findSixOvershootRepairCellInternal(
+    botTeamId,
+    chipsByCell,
+    completedSequences,
+    twoEyeLockedCell,
+    false,
+  );
+}
+
+/**
+ * 6목 자가 복구 시 제거 후 우리가 2시퀀스(승리)가 되는 셀만 반환.
+ * 이미 1시퀀스일 때만 사용하며, 제거로 새 시퀀스가 생겨 총 2시퀀스가 되는 끝 칩을 반환.
+ */
+function findSixOvershootRepairCellThatWins(
+  botTeamId: TeamId,
+  chipsByCell: ChipsByCell,
+  completedSequences: CompletedSequence[],
+  twoEyeLockedCell: number | null | undefined,
+): number | null {
+  return findSixOvershootRepairCellInternal(
+    botTeamId,
+    chipsByCell,
+    completedSequences,
+    twoEyeLockedCell,
+    true,
+  );
+}
+
+function findSixOvershootRepairCellInternal(
+  botTeamId: TeamId,
+  chipsByCell: ChipsByCell,
+  completedSequences: CompletedSequence[],
+  twoEyeLockedCell: number | null | undefined,
+  onlyIfSecondSequence: boolean,
+): number | null {
   const seqCells = new Set(completedSequences.flatMap((s) => s.cells));
+  const existingBotSeqs = completedSequences.filter((s) => s.teamId === botTeamId).length;
 
   for (const [dr, dc] of DIRECTIONS) {
     for (let row = 0; row < BOARD_SIZE; row++) {
@@ -404,8 +441,13 @@ function findSixOvershootRepairCell(
           delete chipsAfterRemoval[String(endCell)];
 
           const newSeqs = detectNewSequences(chipsAfterRemoval, completedSequences);
-          if (newSeqs.some((s) => s.teamId === botTeamId)) {
-            return endCell;
+          const newBotSeqs = newSeqs.filter((s) => s.teamId === botTeamId).length;
+          const wouldBeSecondSequence = existingBotSeqs === 1 && newBotSeqs >= 1;
+
+          if (onlyIfSecondSequence) {
+            if (wouldBeSecondSequence) return endCell;
+          } else {
+            if (newBotSeqs >= 1) return endCell;
           }
         }
       }
@@ -556,10 +598,29 @@ export function decideBotAction(input: BotDecisionInput): BotGameAction {
         }
       }
     }
+
+    // 6목 자가 복구로 2시퀀스(승리) 가능하면 1-eye로 최우선 수행
+    if (oneEyeCards.length > 0) {
+      const repairWinCell = findSixOvershootRepairCellThatWins(
+        botTeamId,
+        chipsByCell,
+        completedSequences,
+        twoEyeLockedCell,
+      );
+      if (repairWinCell !== null) {
+        return {
+          type: "TURN_PLAY_JACK_REMOVE",
+          expectedVersion,
+          cardId: oneEyeCards[0],
+          removeCellId: repairWinCell,
+        };
+      }
+    }
   }
 
   // ── 우선순위 2: 위기 방어(상대 1시퀀스 + 4개라인) ─────────────────────────
   // §5-A: 일반 카드로 차단 가능하면 잭 절약. 불가시 1-eye로 위협 라인이 가장 많이 걸친 칩 제거(방어적).
+  // 제거 대상 선택: 3목 겹침 개수 → 2목 겹침 개수 → scoreRemoval 순.
   if (enemySeqCount === 1) {
     const threatCells = getEnemyThreatEmptyCells(enemyTeamId, chipsByCell, 4);
 
@@ -574,28 +635,35 @@ export function decideBotAction(input: BotDecisionInput): BotGameAction {
     }
 
     if (oneEyeCards.length > 0) {
-      let bestRemoveCell: number | null = null;
-      let bestThreatLines = 0;
-      let bestScore = 0;
-      for (const cellId of removableCells) {
+      const candidates = removableCells.filter((cellId) => {
         const lineScore = maxEnemyLineAt(cellId, enemyTeamId, chipsByCell);
-        if (lineScore < 4) continue; // 4목에 참여하지 않는 칩은 제거하지 않음
-        // 3목 이상으로 세어서 4목+3목 교차점이 4목 말단보다 우선(교차점 제거가 방어상 유리)
-        const threatLines = countEnemyThreatLinesContaining(cellId, enemyTeamId, chipsByCell, 3);
-        const score = scoreRemoval(cellId, enemyTeamId, botTeamId, chipsByCell, hand);
-        if (threatLines > bestThreatLines || (threatLines === bestThreatLines && score > bestScore)) {
-          bestThreatLines = threatLines;
-          bestScore = score;
-          bestRemoveCell = cellId;
+        return lineScore >= 4;
+      });
+      if (candidates.length > 0) {
+        const best = candidates.reduce<
+          { cellId: number; threat3: number; threat2: number; score: number } | null
+        >((best, cellId) => {
+          const threat3 = countEnemyThreatLinesContaining(cellId, enemyTeamId, chipsByCell, 3);
+          const threat2 = countEnemyThreatLinesContaining(cellId, enemyTeamId, chipsByCell, 2);
+          const score = scoreRemoval(cellId, enemyTeamId, botTeamId, chipsByCell, hand);
+          if (
+            best === null ||
+            threat3 > best.threat3 ||
+            (threat3 === best.threat3 && threat2 > best.threat2) ||
+            (threat3 === best.threat3 && threat2 === best.threat2 && score > best.score)
+          ) {
+            return { cellId, threat3, threat2, score };
+          }
+          return best;
+        }, null);
+        if (best !== null) {
+          return {
+            type: "TURN_PLAY_JACK_REMOVE",
+            expectedVersion,
+            cardId: oneEyeCards[0],
+            removeCellId: best.cellId,
+          };
         }
-      }
-      if (bestRemoveCell !== null) {
-        return {
-          type: "TURN_PLAY_JACK_REMOVE",
-          expectedVersion,
-          cardId: oneEyeCards[0],
-          removeCellId: bestRemoveCell,
-        };
       }
     }
   }
@@ -628,7 +696,7 @@ export function decideBotAction(input: BotDecisionInput): BotGameAction {
   }
 
   // ── 우선순위 5: 상대 0시퀀스 4개라인 선제 차단 ──────────────────────────
-  // §5-A: 일반 카드 우선. 불가시 1-eye: 보통 4목에 참여하는 칩만 제거. 예외: 제거한 칸을 손패로 채워 5목 완성 가능하면 과감히 제거(공격).
+  // §5-A: 일반 카드 우선. 불가시 1-eye: 4목에 참여하는 칩만 제거. 교차하는 4목 라인(크리티컬) 개수 → scoreRemoval 순.
   if (enemySeqCount === 0) {
     const threatCells = getEnemyThreatEmptyCells(enemyTeamId, chipsByCell, 4);
 
@@ -665,25 +733,40 @@ export function decideBotAction(input: BotDecisionInput): BotGameAction {
         };
       }
 
-      // 기본: 4목에 참여하는 상대 칩만 제거(쌩뚱맞은 칩 제거 방지)
-      let bestRemoveCell: number | null = null;
-      let bestScore = 0;
-      for (const cellId of removableCells) {
+      // 기본: 4목에 참여하는 상대 칩 중, 교차하는 4목 라인(크리티컬) 개수 → scoreRemoval 순으로 선택
+      const candidates = removableCells.filter((cellId) => {
         const lineScore = maxEnemyLineAt(cellId, enemyTeamId, chipsByCell);
-        if (lineScore < 4) continue;
-        const score = scoreRemoval(cellId, enemyTeamId, botTeamId, chipsByCell, hand);
-        if (score > bestScore) {
-          bestScore = score;
-          bestRemoveCell = cellId;
+        return lineScore >= 4;
+      });
+      if (candidates.length > 0) {
+        let bestRemoveCell: number | null = null;
+        let bestCriticalLines = 0;
+        let bestScore = 0;
+        for (const cellId of candidates) {
+          const criticalLines = countEnemyThreatLinesContaining(
+            cellId,
+            enemyTeamId,
+            chipsByCell,
+            4,
+          );
+          const score = scoreRemoval(cellId, enemyTeamId, botTeamId, chipsByCell, hand);
+          if (
+            criticalLines > bestCriticalLines ||
+            (criticalLines === bestCriticalLines && score > bestScore)
+          ) {
+            bestCriticalLines = criticalLines;
+            bestScore = score;
+            bestRemoveCell = cellId;
+          }
         }
-      }
-      if (bestRemoveCell !== null) {
-        return {
-          type: "TURN_PLAY_JACK_REMOVE",
-          expectedVersion,
-          cardId: oneEyeCards[0],
-          removeCellId: bestRemoveCell,
-        };
+        if (bestRemoveCell !== null) {
+          return {
+            type: "TURN_PLAY_JACK_REMOVE",
+            expectedVersion,
+            cardId: oneEyeCards[0],
+            removeCellId: bestRemoveCell,
+          };
+        }
       }
     }
   }
