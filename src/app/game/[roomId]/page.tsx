@@ -8,7 +8,7 @@ import { subscribeToHand, submitTurnAction, submitBotTurnAction, getBotHand } fr
 import { decideBotAction } from "@/domain/bot/botDecision";
 import { cardImageUrl, cardAltText } from "@/shared/lib/cardImage";
 import { sortParticipantsRedBlue } from "@/shared/lib/players";
-import { isDeadCard, getPlayableCells } from "@/domain/rules/deadCard";
+import { isDeadCard, getPlayableCells, getCardCells } from "@/domain/rules/deadCard";
 import { isTwoEyedJack, isOneEyedJack, isJack } from "@/domain/rules/jacks";
 import { getHighlightForCard } from "@/domain/rules/highlight";
 import boardLayout from "@/domain/board/board-layout.v1.json";
@@ -187,6 +187,8 @@ const BoardCell = memo(function BoardCell({
   placedAnim,
   removingTeamId,
   cellClickable,
+  /** true면 손패 미선택 상태로, 셀 클릭 시 해당 카드의 두 위치 힌트 표시용(모든 셀 클릭 가능) */
+  hintModeActive,
   onClick,
 }: {
   cellId: number;
@@ -209,10 +211,12 @@ const BoardCell = memo(function BoardCell({
   removingTeamId?: TeamId;
   /** false면 하이라이트만 표시, 클릭 불가(상대 턴 위치 확인용) */
   cellClickable: boolean;
+  /** true면 손패 미선택 상태로, 모든 셀 클릭 가능(해당 카드 위치 힌트용) */
+  hintModeActive?: boolean;
   onClick: () => void;
 }) {
   const interactive = isPlayable || isRemovable;
-  const canClick = interactive && cellClickable;
+  const canClick = (interactive || !!hintModeActive) && cellClickable;
 
   // drop-shadow는 img 실제 픽셀(카드 영역)을 따라가므로
   // 셀 크기와 카드 이미지 크기 차이에 무관하게 카드 윤곽에 딱 맞게 발광함
@@ -307,12 +311,15 @@ function GameBoard({
   game,
   myTeamId,
   selectedCard,
+  boardCellHintCellId,
   cellClickable,
   onCellClick,
 }: {
   game: PublicGameState | undefined;
   myTeamId: TeamId | undefined;
   selectedCard: string | null;
+  /** 손패 미선택 시 보드 셀 클릭으로 선택한 셀(해당 카드의 두 위치 힌트용). null이면 미사용 */
+  boardCellHintCellId: number | null;
   /** false면 하이라이트만 표시하고 셀 클릭 불가(상대 턴 위치 확인용) */
   cellClickable: boolean;
   onCellClick: (cellId: number) => void;
@@ -383,7 +390,18 @@ function GameBoard({
           game?.oneEyeLockedCell,
           game?.twoEyeLockedCell,
         )
-      : null;
+      : boardCellHintCellId != null
+        ? (() => {
+            const cardId = BOARD_LAYOUT[boardCellHintCellId];
+            const cells = getCardCells(cardId);
+            if (cells.length === 0) return null; // 잭 등 보드에 2칸이 없는 카드
+            return {
+              playable: new Set<number>(),
+              removable: new Set<number>(),
+              hint: new Set<number>(cells),
+            };
+          })()
+        : null;
 
   const jackType = selectedCard
     ? isTwoEyedJack(selectedCard)
@@ -435,6 +453,7 @@ function GameBoard({
             placedAnim={placedAnim}
             removingTeamId={removingTeamId}
             cellClickable={cellClickable}
+            hintModeActive={selectedCard === null}
             onClick={() => onCellClick(idx)}
           />
         );
@@ -1242,6 +1261,8 @@ export default function GamePage() {
   const [players, setPlayers] = useState<RoomPlayerDoc[]>([]);
   const [hand, setHand] = useState<PrivateHandDoc | null>(null);
   const [selectedCard, setSelectedCard] = useState<string | null>(null);
+  /** 손패 선택 없이 보드 셀을 눌렀을 때 해당 카드의 두 위치 힌트용. 같은 셀 재클릭 시 해제 */
+  const [boardCellHintCellId, setBoardCellHintCellId] = useState<number | null>(null);
   const [txPending, setTxPending] = useState(false);
   const [txError, setTxError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1639,7 +1660,11 @@ export default function GamePage() {
   const handleSelectCard = useCallback(
     (cardId: string) => {
       if (gameEnded) return;
-      setSelectedCard((prev) => (prev === cardId ? null : cardId));
+      setSelectedCard((prev) => {
+        const next = prev === cardId ? null : cardId;
+        if (next !== null) setBoardCellHintCellId(null); // 손패 카드 선택 시 보드 셀 힌트 해제
+        return next;
+      });
       setTxError(null);
     },
     [gameEnded],
@@ -1647,7 +1672,12 @@ export default function GamePage() {
 
   const handleCellClick = useCallback(
     async (cellId: number) => {
-      if (gameEnded || !selectedCard || !isMyTurn || !game || txPending) return;
+      // 손패 미선택 시: 해당 보드 셀 카드의 두 위치 힌트 토글
+      if (!selectedCard) {
+        setBoardCellHintCellId((prev) => (prev === cellId ? null : cellId));
+        return;
+      }
+      if (gameEnded || !isMyTurn || !game || txPending) return;
 
       const expectedVersion = game.version;
       let action: GameAction;
@@ -1804,7 +1834,8 @@ export default function GamePage() {
                 game={game}
                 myTeamId={me?.teamId}
                 selectedCard={selectedCard}
-                cellClickable={isMyTurn}
+                boardCellHintCellId={boardCellHintCellId}
+                cellClickable={selectedCard === null || isMyTurn}
                 onCellClick={handleCellClick}
               />
             </div>
@@ -1889,7 +1920,8 @@ export default function GamePage() {
               game={game}
               myTeamId={me?.teamId}
               selectedCard={selectedCard}
-              cellClickable={isMyTurn}
+              boardCellHintCellId={boardCellHintCellId}
+              cellClickable={selectedCard === null || isMyTurn}
               onCellClick={handleCellClick}
             />
           </div>
