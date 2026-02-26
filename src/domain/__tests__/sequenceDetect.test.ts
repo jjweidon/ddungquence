@@ -143,18 +143,16 @@ describe("detectNewSequences — 코너 칸 포함 시퀀스", () => {
 });
 
 describe("detectNewSequences — 6목(6개 이상 연속) 정책", () => {
-  it("가로 6개 연속 → 같은 라인에서 겹치지 않는 1개만 시퀀스로 인정", () => {
+  it("가로 6개 연속 → 시퀀스 없음(6목은 인정 안 함)", () => {
     const chips = fillRow(0, [0, 1, 2, 3, 4, 5], "A");
     const result = detectNewSequences(chips, []);
-    expect(result).toHaveLength(1);
-    expect(result[0].cells.sort((a, b) => a - b)).toEqual([0, 1, 2, 3, 4]);
+    expect(result).toHaveLength(0);
   });
 
-  it("가로 7개 연속 → 같은 라인에서 1개만 시퀀스 인정", () => {
+  it("가로 7개 연속 → 시퀀스 없음(7목 인정 안 함)", () => {
     const chips = fillRow(0, [0, 1, 2, 3, 4, 5, 6], "A");
     const result = detectNewSequences(chips, []);
-    expect(result).toHaveLength(1);
-    expect(result[0].cells.sort((a, b) => a - b)).toEqual([0, 1, 2, 3, 4]);
+    expect(result).toHaveLength(0);
   });
 
   it("가로 5개 연속(경계 없음) → 시퀀스 1개", () => {
@@ -164,31 +162,40 @@ describe("detectNewSequences — 6목(6개 이상 연속) 정책", () => {
     expect(result[0].cells).toEqual([2, 3, 4, 5, 6]);
   });
 
-  it("세로 6개 연속 → 같은 라인에서 1개만 시퀀스 인정", () => {
+  it("세로 6개 연속 → 시퀀스 없음(6목 인정 안 함)", () => {
     const chips: ChipsByCell = {};
     for (let row = 0; row < 6; row++) {
       chips[String(cell(row, 3))] = "B";
     }
     const result = detectNewSequences(chips, []);
-    expect(result).toHaveLength(1);
-    expect(result[0].cells.sort((a, b) => a - b)).toEqual([3, 13, 23, 33, 43]);
+    expect(result).toHaveLength(0);
   });
 
-  it("대각선(↘) 6개 연속 → 같은 라인에서 1개만 시퀀스 인정", () => {
+  it("대각선(↘) 6개 연속 → 시퀀스 없음(6목 인정 안 함)", () => {
     const chips: ChipsByCell = {};
     for (let i = 0; i < 6; i++) {
       chips[String(cell(i, i))] = "A";
     }
     const result = detectNewSequences(chips, []);
-    expect(result).toHaveLength(1);
-    expect(result[0].cells.sort((a, b) => a - b)).toEqual([0, 11, 22, 33, 44]);
+    expect(result).toHaveLength(0);
   });
 
-  it("4개 연속 + 1칸 갭 + 1개 → 중간 배치로 6개 연속 → 같은 라인 1개만 시퀀스", () => {
+  it("4개 연속 + 1칸 갭 + 1개 → 중간 배치로 6개 연속 → 시퀀스 없음(6목 인정 안 함)", () => {
     const chips = fillRow(1, [0, 1, 2, 3, 4, 5], "A");
     const result = detectNewSequences(chips, []);
-    expect(result).toHaveLength(1);
-    expect(result[0].cells.sort((a, b) => a - b)).toEqual([10, 11, 12, 13, 14]);
+    expect(result).toHaveLength(0);
+  });
+
+  it("가로 8개 연속 → 시퀀스 없음(8목 인정 안 함)", () => {
+    const chips = fillRow(0, [0, 1, 2, 3, 4, 5, 6, 7], "A");
+    const result = detectNewSequences(chips, []);
+    expect(result).toHaveLength(0);
+  });
+
+  it("가로 9개 연속 → 시퀀스 없음(9목 인정 안 함)", () => {
+    const chips = fillRow(0, [0, 1, 2, 3, 4, 5, 6, 7, 8], "A");
+    const result = detectNewSequences(chips, []);
+    expect(result).toHaveLength(0);
   });
 
   it("6개 연속에서 한쪽 끝 제거(칩 없음) → 5개만 남아 시퀀스 탐지", () => {
@@ -235,6 +242,17 @@ describe("detectNewSequences — 6목(6개 이상 연속) 정책", () => {
       cell(2, 3),
       cell(2, 4),
     ]);
+  });
+
+  it("6목(x x o o o o o o x x)에서 one-eyed jack으로 o 한 칸 제거 → 5목 시퀀스 1개", () => {
+    // row 0: B B _ A A A A A B B (6목에서 가운데 o 하나 제거한 상태)
+    const chips: ChipsByCell = {};
+    for (const col of [0, 1, 8, 9]) chips[String(cell(0, col))] = "B";
+    for (const col of [3, 4, 5, 6, 7]) chips[String(cell(0, col))] = "A";
+    const result = detectNewSequences(chips, []);
+    expect(result).toHaveLength(1);
+    expect(result[0].teamId).toBe("A");
+    expect(result[0].cells.sort((a, b) => a - b)).toEqual([3, 4, 5, 6, 7]);
   });
 
   it("가로 10칸 일렬 → 같은 라인에서 겹치지 않는 2시퀀스 인정 [0-4], [5-9]", () => {

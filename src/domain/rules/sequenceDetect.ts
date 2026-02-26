@@ -53,6 +53,70 @@ function sameLine(a: number[], b: number[]): boolean {
   return ka !== null && kb !== null && ka.dir === kb.dir && ka.lineId === kb.lineId;
 }
 
+/** 해당 방향의 라인에서 인접한 칸 간 차이(stride). 연속 run 분할용 */
+function getStride(dir: number): number {
+  if (dir === 0) return 1;   // →
+  if (dir === 1) return 10;  // ↓
+  if (dir === 2) return 11;   // ↘
+  if (dir === 3) return 9;    // ↙
+  return 1;
+}
+
+/** 한 라인(dir, lineId)에 속한 모든 cellId 목록(정렬). */
+function getLineCellIds(dir: number, lineId: number): number[] {
+  const cells: number[] = [];
+  if (dir === 0) {
+    for (let col = 0; col < BOARD_SIZE; col++) cells.push(cellId(lineId, col));
+  } else if (dir === 1) {
+    for (let row = 0; row < BOARD_SIZE; row++) cells.push(cellId(row, lineId));
+  } else if (dir === 2) {
+    for (let r = 0; r < BOARD_SIZE; r++) {
+      const c = r - lineId;
+      if (c >= 0 && c < BOARD_SIZE) cells.push(cellId(r, c));
+    }
+  } else {
+    for (let r = 0; r < BOARD_SIZE; r++) {
+      const c = lineId - r;
+      if (c >= 0 && c < BOARD_SIZE) cells.push(cellId(r, c));
+    }
+  }
+  return cells;
+}
+
+/**
+ * 라인 상에서 해당 팀이 연속으로 채운 구간(run) 목록을 반환.
+ * 각 run은 정렬된 cellId 배열. 6·7·8·9목 구간 판정에 사용.
+ */
+function getRunsOnLine(
+  chipsByCell: ChipsByCell,
+  teamId: TeamId,
+  dir: number,
+  lineId: number,
+): number[][] {
+  const lineCells = getLineCellIds(dir, lineId);
+  const filled = lineCells.filter((cid) => chipsByCell[String(cid)] === teamId);
+  if (filled.length === 0) return [];
+  const stride = getStride(dir);
+  const runs: number[][] = [];
+  let run: number[] = [filled[0]];
+  for (let i = 1; i < filled.length; i++) {
+    if (filled[i] - filled[i - 1] === stride) {
+      run.push(filled[i]);
+    } else {
+      runs.push(run);
+      run = [filled[i]];
+    }
+  }
+  runs.push(run);
+  return runs;
+}
+
+/** 후보의 5칸이 run에 완전히 포함되는지 */
+function isContainedInRun(candidateCells: number[], run: number[]): boolean {
+  const setRun = new Set(run);
+  return candidateCells.every((c) => setRun.has(c));
+}
+
 /**
  * 현재 보드 상태에서 모든 팀의 시퀀스 후보를 탐색한다.
  * 방향 4개(→ ↓ ↘ ↙)를 검사하며, 6개 이상 연속인 줄도 5칸 윈도우는 후보에 포함한다.
@@ -152,7 +216,7 @@ export function detectNewSequences(
     return true;
   });
 
-  // 같은 라인 내에서 서로 겹치는 후보 제거: 라인별로 겹치지 않는 집합만 선택
+  // 같은 라인 내에서 서로 겹치는 후보 제거 + 6·7·8·9목 구간 제외 후, 라인별로 겹치지 않는 집합만 선택
   const byLine = new Map<string, DetectedSequence[]>();
   for (const c of allowed) {
     const k = getLineKey(c.cells);
@@ -163,10 +227,22 @@ export function detectNewSequences(
   }
 
   const result: DetectedSequence[] = [];
-  for (const list of byLine.values()) {
-    list.sort((a, b) => Math.min(...a.cells) - Math.min(...b.cells));
+  for (const [lineKey, list] of byLine) {
+    const [teamId, dirStr, lineIdStr] = lineKey.split(",");
+    const dir = Number(dirStr);
+    const lineId = Number(lineIdStr);
+    const runs = getRunsOnLine(chipsByCell, teamId as TeamId, dir, lineId);
+    const forbiddenRunLengths = new Set([6, 7, 8, 9]);
+    const filtered = list.filter((c) => {
+      for (const run of runs) {
+        if (forbiddenRunLengths.has(run.length) && isContainedInRun(c.cells, run)) return false;
+      }
+      return true;
+    });
+
+    filtered.sort((a, b) => Math.min(...a.cells) - Math.min(...b.cells));
     const taken: DetectedSequence[] = [];
-    for (const c of list) {
+    for (const c of filtered) {
       const overlapsTaken = taken.some((t) => overlapCount(t.cells, c.cells) >= 1);
       if (!overlapsTaken) taken.push(c);
     }
