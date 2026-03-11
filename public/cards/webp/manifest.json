@@ -1,0 +1,758 @@
+[
+  {
+    "name": "clover_10_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 29254,
+    "webp_bytes": 3916
+  },
+  {
+    "name": "clover_10_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 29254,
+    "webp_bytes": 3916
+  },
+  {
+    "name": "clover_2_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 10149,
+    "webp_bytes": 1812
+  },
+  {
+    "name": "clover_2_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 10149,
+    "webp_bytes": 1812
+  },
+  {
+    "name": "clover_3_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 12532,
+    "webp_bytes": 2372
+  },
+  {
+    "name": "clover_3_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 12532,
+    "webp_bytes": 2372
+  },
+  {
+    "name": "clover_4_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 14924,
+    "webp_bytes": 2314
+  },
+  {
+    "name": "clover_4_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 14924,
+    "webp_bytes": 2314
+  },
+  {
+    "name": "clover_5_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 17301,
+    "webp_bytes": 2820
+  },
+  {
+    "name": "clover_5_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 17301,
+    "webp_bytes": 2820
+  },
+  {
+    "name": "clover_6_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 19693,
+    "webp_bytes": 3072
+  },
+  {
+    "name": "clover_6_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 19693,
+    "webp_bytes": 3072
+  },
+  {
+    "name": "clover_7_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 22083,
+    "webp_bytes": 2916
+  },
+  {
+    "name": "clover_7_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 22083,
+    "webp_bytes": 2916
+  },
+  {
+    "name": "clover_8_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 24466,
+    "webp_bytes": 3388
+  },
+  {
+    "name": "clover_8_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 24466,
+    "webp_bytes": 3388
+  },
+  {
+    "name": "clover_9_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 26852,
+    "webp_bytes": 3470
+  },
+  {
+    "name": "clover_9_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 26852,
+    "webp_bytes": 3470
+  },
+  {
+    "name": "clover_a_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 7721,
+    "webp_bytes": 1866
+  },
+  {
+    "name": "clover_a_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 7721,
+    "webp_bytes": 1866
+  },
+  {
+    "name": "clover_j_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 7254,
+    "webp_bytes": 2744
+  },
+  {
+    "name": "clover_j_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 7254,
+    "webp_bytes": 2744
+  },
+  {
+    "name": "clover_k_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 13710,
+    "webp_bytes": 11478
+  },
+  {
+    "name": "clover_k_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 13710,
+    "webp_bytes": 11478
+  },
+  {
+    "name": "clover_q_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 12544,
+    "webp_bytes": 10374
+  },
+  {
+    "name": "clover_q_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 12544,
+    "webp_bytes": 10374
+  },
+  {
+    "name": "diamond_10_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 18670,
+    "webp_bytes": 3738
+  },
+  {
+    "name": "diamond_10_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 18670,
+    "webp_bytes": 3738
+  },
+  {
+    "name": "diamond_2_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 6645,
+    "webp_bytes": 1970
+  },
+  {
+    "name": "diamond_2_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 6645,
+    "webp_bytes": 1970
+  },
+  {
+    "name": "diamond_3_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 8143,
+    "webp_bytes": 2370
+  },
+  {
+    "name": "diamond_3_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 8143,
+    "webp_bytes": 2370
+  },
+  {
+    "name": "diamond_4_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 9650,
+    "webp_bytes": 2334
+  },
+  {
+    "name": "diamond_4_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 9650,
+    "webp_bytes": 2334
+  },
+  {
+    "name": "diamond_5_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 11142,
+    "webp_bytes": 2766
+  },
+  {
+    "name": "diamond_5_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 11142,
+    "webp_bytes": 2766
+  },
+  {
+    "name": "diamond_6_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 12649,
+    "webp_bytes": 3090
+  },
+  {
+    "name": "diamond_6_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 12649,
+    "webp_bytes": 3090
+  },
+  {
+    "name": "diamond_7_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 14154,
+    "webp_bytes": 2924
+  },
+  {
+    "name": "diamond_7_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 14154,
+    "webp_bytes": 2924
+  },
+  {
+    "name": "diamond_8_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 15652,
+    "webp_bytes": 3384
+  },
+  {
+    "name": "diamond_8_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 15652,
+    "webp_bytes": 3384
+  },
+  {
+    "name": "diamond_9_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 17144,
+    "webp_bytes": 3510
+  },
+  {
+    "name": "diamond_9_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 17144,
+    "webp_bytes": 3510
+  },
+  {
+    "name": "diamond_a_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 5118,
+    "webp_bytes": 2018
+  },
+  {
+    "name": "diamond_a_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 5118,
+    "webp_bytes": 2018
+  },
+  {
+    "name": "diamond_j_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 5520,
+    "webp_bytes": 3052
+  },
+  {
+    "name": "diamond_j_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 5520,
+    "webp_bytes": 3052
+  },
+  {
+    "name": "diamond_k_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 11976,
+    "webp_bytes": 11596
+  },
+  {
+    "name": "diamond_k_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 11976,
+    "webp_bytes": 11596
+  },
+  {
+    "name": "diamond_q_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 10810,
+    "webp_bytes": 10532
+  },
+  {
+    "name": "diamond_q_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 10810,
+    "webp_bytes": 10532
+  },
+  {
+    "name": "heart_10_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 21036,
+    "webp_bytes": 4032
+  },
+  {
+    "name": "heart_10_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 21036,
+    "webp_bytes": 4032
+  },
+  {
+    "name": "heart_2_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 7387,
+    "webp_bytes": 2178
+  },
+  {
+    "name": "heart_2_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 7387,
+    "webp_bytes": 2178
+  },
+  {
+    "name": "heart_3_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 9088,
+    "webp_bytes": 2578
+  },
+  {
+    "name": "heart_3_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 9088,
+    "webp_bytes": 2578
+  },
+  {
+    "name": "heart_4_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 10798,
+    "webp_bytes": 2504
+  },
+  {
+    "name": "heart_4_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 10798,
+    "webp_bytes": 2504
+  },
+  {
+    "name": "heart_5_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 12493,
+    "webp_bytes": 2924
+  },
+  {
+    "name": "heart_5_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 12493,
+    "webp_bytes": 2924
+  },
+  {
+    "name": "heart_6_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 14203,
+    "webp_bytes": 3252
+  },
+  {
+    "name": "heart_6_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 14203,
+    "webp_bytes": 3252
+  },
+  {
+    "name": "heart_7_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 15911,
+    "webp_bytes": 3148
+  },
+  {
+    "name": "heart_7_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 15911,
+    "webp_bytes": 3148
+  },
+  {
+    "name": "heart_8_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 17612,
+    "webp_bytes": 3640
+  },
+  {
+    "name": "heart_8_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 17612,
+    "webp_bytes": 3640
+  },
+  {
+    "name": "heart_9_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 19307,
+    "webp_bytes": 3814
+  },
+  {
+    "name": "heart_9_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 19307,
+    "webp_bytes": 3814
+  },
+  {
+    "name": "heart_a_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 5622,
+    "webp_bytes": 2238
+  },
+  {
+    "name": "heart_a_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 5622,
+    "webp_bytes": 2238
+  },
+  {
+    "name": "heart_j_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 5781,
+    "webp_bytes": 2828
+  },
+  {
+    "name": "heart_j_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 5781,
+    "webp_bytes": 2828
+  },
+  {
+    "name": "heart_k_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 12312,
+    "webp_bytes": 11690
+  },
+  {
+    "name": "heart_k_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 12312,
+    "webp_bytes": 11690
+  },
+  {
+    "name": "heart_q_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 11146,
+    "webp_bytes": 10606
+  },
+  {
+    "name": "heart_q_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 11146,
+    "webp_bytes": 10606
+  },
+  {
+    "name": "o_o_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 365,
+    "webp_bytes": 1592
+  },
+  {
+    "name": "o_o_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 365,
+    "webp_bytes": 1592
+  },
+  {
+    "name": "o_o_3.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 365,
+    "webp_bytes": 1592
+  },
+  {
+    "name": "o_o_4.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 365,
+    "webp_bytes": 1592
+  },
+  {
+    "name": "spade_10_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 28648,
+    "webp_bytes": 3682
+  },
+  {
+    "name": "spade_10_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 28648,
+    "webp_bytes": 3682
+  },
+  {
+    "name": "spade_2_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 9975,
+    "webp_bytes": 1694
+  },
+  {
+    "name": "spade_2_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 9975,
+    "webp_bytes": 1694
+  },
+  {
+    "name": "spade_3_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 12304,
+    "webp_bytes": 2036
+  },
+  {
+    "name": "spade_3_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 12304,
+    "webp_bytes": 2036
+  },
+  {
+    "name": "spade_4_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 14642,
+    "webp_bytes": 2062
+  },
+  {
+    "name": "spade_4_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 14642,
+    "webp_bytes": 2062
+  },
+  {
+    "name": "spade_5_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 16965,
+    "webp_bytes": 2600
+  },
+  {
+    "name": "spade_5_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 16965,
+    "webp_bytes": 2600
+  },
+  {
+    "name": "spade_6_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 19303,
+    "webp_bytes": 2876
+  },
+  {
+    "name": "spade_6_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 19303,
+    "webp_bytes": 2876
+  },
+  {
+    "name": "spade_7_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 21639,
+    "webp_bytes": 2800
+  },
+  {
+    "name": "spade_7_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 21639,
+    "webp_bytes": 2800
+  },
+  {
+    "name": "spade_8_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 23968,
+    "webp_bytes": 3206
+  },
+  {
+    "name": "spade_8_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 23968,
+    "webp_bytes": 3206
+  },
+  {
+    "name": "spade_9_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 26291,
+    "webp_bytes": 3338
+  },
+  {
+    "name": "spade_9_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 26291,
+    "webp_bytes": 3338
+  },
+  {
+    "name": "spade_a_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 7620,
+    "webp_bytes": 1760
+  },
+  {
+    "name": "spade_a_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 7620,
+    "webp_bytes": 1760
+  },
+  {
+    "name": "spade_j_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 7113,
+    "webp_bytes": 2426
+  },
+  {
+    "name": "spade_j_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 7113,
+    "webp_bytes": 2426
+  },
+  {
+    "name": "spade_k_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 13644,
+    "webp_bytes": 11298
+  },
+  {
+    "name": "spade_k_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 13644,
+    "webp_bytes": 11298
+  },
+  {
+    "name": "spade_q_1.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 12478,
+    "webp_bytes": 10206
+  },
+  {
+    "name": "spade_q_2.webp",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 12478,
+    "webp_bytes": 10206
+  }
+]

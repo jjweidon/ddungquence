@@ -1,0 +1,758 @@
+[
+  {
+    "name": "clover_10_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 28440,
+    "webp_bytes": 3916
+  },
+  {
+    "name": "clover_10_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 28440,
+    "webp_bytes": 3916
+  },
+  {
+    "name": "clover_2_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 10304,
+    "webp_bytes": 1812
+  },
+  {
+    "name": "clover_2_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 10304,
+    "webp_bytes": 1812
+  },
+  {
+    "name": "clover_3_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 13158,
+    "webp_bytes": 2372
+  },
+  {
+    "name": "clover_3_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 13158,
+    "webp_bytes": 2372
+  },
+  {
+    "name": "clover_4_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 14680,
+    "webp_bytes": 2314
+  },
+  {
+    "name": "clover_4_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 14680,
+    "webp_bytes": 2314
+  },
+  {
+    "name": "clover_5_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 17725,
+    "webp_bytes": 2820
+  },
+  {
+    "name": "clover_5_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 17725,
+    "webp_bytes": 2820
+  },
+  {
+    "name": "clover_6_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 20621,
+    "webp_bytes": 3072
+  },
+  {
+    "name": "clover_6_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 20621,
+    "webp_bytes": 3072
+  },
+  {
+    "name": "clover_7_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 20207,
+    "webp_bytes": 2916
+  },
+  {
+    "name": "clover_7_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 20207,
+    "webp_bytes": 2916
+  },
+  {
+    "name": "clover_8_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 23628,
+    "webp_bytes": 3388
+  },
+  {
+    "name": "clover_8_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 23628,
+    "webp_bytes": 3388
+  },
+  {
+    "name": "clover_9_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 24824,
+    "webp_bytes": 3470
+  },
+  {
+    "name": "clover_9_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 24824,
+    "webp_bytes": 3470
+  },
+  {
+    "name": "clover_a_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 11549,
+    "webp_bytes": 1866
+  },
+  {
+    "name": "clover_a_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 11549,
+    "webp_bytes": 1866
+  },
+  {
+    "name": "clover_j_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 15995,
+    "webp_bytes": 2744
+  },
+  {
+    "name": "clover_j_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 15995,
+    "webp_bytes": 2744
+  },
+  {
+    "name": "clover_k_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 65365,
+    "webp_bytes": 11478
+  },
+  {
+    "name": "clover_k_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 65365,
+    "webp_bytes": 11478
+  },
+  {
+    "name": "clover_q_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 49435,
+    "webp_bytes": 10374
+  },
+  {
+    "name": "clover_q_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 49435,
+    "webp_bytes": 10374
+  },
+  {
+    "name": "diamond_10_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 15530,
+    "webp_bytes": 3738
+  },
+  {
+    "name": "diamond_10_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 15530,
+    "webp_bytes": 3738
+  },
+  {
+    "name": "diamond_2_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 6288,
+    "webp_bytes": 1970
+  },
+  {
+    "name": "diamond_2_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 6288,
+    "webp_bytes": 1970
+  },
+  {
+    "name": "diamond_3_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 8690,
+    "webp_bytes": 2370
+  },
+  {
+    "name": "diamond_3_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 8690,
+    "webp_bytes": 2370
+  },
+  {
+    "name": "diamond_4_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 8742,
+    "webp_bytes": 2334
+  },
+  {
+    "name": "diamond_4_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 8742,
+    "webp_bytes": 2334
+  },
+  {
+    "name": "diamond_5_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 10358,
+    "webp_bytes": 2766
+  },
+  {
+    "name": "diamond_5_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 10358,
+    "webp_bytes": 2766
+  },
+  {
+    "name": "diamond_6_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 11266,
+    "webp_bytes": 3090
+  },
+  {
+    "name": "diamond_6_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 11266,
+    "webp_bytes": 3090
+  },
+  {
+    "name": "diamond_7_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 10294,
+    "webp_bytes": 2924
+  },
+  {
+    "name": "diamond_7_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 10294,
+    "webp_bytes": 2924
+  },
+  {
+    "name": "diamond_8_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 11782,
+    "webp_bytes": 3384
+  },
+  {
+    "name": "diamond_8_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 11782,
+    "webp_bytes": 3384
+  },
+  {
+    "name": "diamond_9_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 13297,
+    "webp_bytes": 3510
+  },
+  {
+    "name": "diamond_9_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 13297,
+    "webp_bytes": 3510
+  },
+  {
+    "name": "diamond_a_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 7528,
+    "webp_bytes": 2018
+  },
+  {
+    "name": "diamond_a_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 7528,
+    "webp_bytes": 2018
+  },
+  {
+    "name": "diamond_j_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 14134,
+    "webp_bytes": 3052
+  },
+  {
+    "name": "diamond_j_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 14134,
+    "webp_bytes": 3052
+  },
+  {
+    "name": "diamond_k_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 64210,
+    "webp_bytes": 11596
+  },
+  {
+    "name": "diamond_k_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 64210,
+    "webp_bytes": 11596
+  },
+  {
+    "name": "diamond_q_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 47990,
+    "webp_bytes": 10532
+  },
+  {
+    "name": "diamond_q_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 47990,
+    "webp_bytes": 10532
+  },
+  {
+    "name": "heart_10_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 18632,
+    "webp_bytes": 4032
+  },
+  {
+    "name": "heart_10_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 18632,
+    "webp_bytes": 4032
+  },
+  {
+    "name": "heart_2_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 7295,
+    "webp_bytes": 2178
+  },
+  {
+    "name": "heart_2_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 7295,
+    "webp_bytes": 2178
+  },
+  {
+    "name": "heart_3_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 10096,
+    "webp_bytes": 2578
+  },
+  {
+    "name": "heart_3_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 10096,
+    "webp_bytes": 2578
+  },
+  {
+    "name": "heart_4_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 9926,
+    "webp_bytes": 2504
+  },
+  {
+    "name": "heart_4_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 9926,
+    "webp_bytes": 2504
+  },
+  {
+    "name": "heart_5_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 11483,
+    "webp_bytes": 2924
+  },
+  {
+    "name": "heart_5_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 11483,
+    "webp_bytes": 2924
+  },
+  {
+    "name": "heart_6_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 14479,
+    "webp_bytes": 3252
+  },
+  {
+    "name": "heart_6_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 14479,
+    "webp_bytes": 3252
+  },
+  {
+    "name": "heart_7_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 12091,
+    "webp_bytes": 3148
+  },
+  {
+    "name": "heart_7_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 12091,
+    "webp_bytes": 3148
+  },
+  {
+    "name": "heart_8_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 15230,
+    "webp_bytes": 3640
+  },
+  {
+    "name": "heart_8_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 15230,
+    "webp_bytes": 3640
+  },
+  {
+    "name": "heart_9_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 16298,
+    "webp_bytes": 3814
+  },
+  {
+    "name": "heart_9_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 16298,
+    "webp_bytes": 3814
+  },
+  {
+    "name": "heart_a_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 8513,
+    "webp_bytes": 2238
+  },
+  {
+    "name": "heart_a_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 8513,
+    "webp_bytes": 2238
+  },
+  {
+    "name": "heart_j_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 12459,
+    "webp_bytes": 2828
+  },
+  {
+    "name": "heart_j_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 12459,
+    "webp_bytes": 2828
+  },
+  {
+    "name": "heart_k_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 64481,
+    "webp_bytes": 11690
+  },
+  {
+    "name": "heart_k_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 64481,
+    "webp_bytes": 11690
+  },
+  {
+    "name": "heart_q_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 48261,
+    "webp_bytes": 10606
+  },
+  {
+    "name": "heart_q_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 48261,
+    "webp_bytes": 10606
+  },
+  {
+    "name": "o_o_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 8030,
+    "webp_bytes": 1592
+  },
+  {
+    "name": "o_o_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 8030,
+    "webp_bytes": 1592
+  },
+  {
+    "name": "o_o_3.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 8030,
+    "webp_bytes": 1592
+  },
+  {
+    "name": "o_o_4.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 8030,
+    "webp_bytes": 1592
+  },
+  {
+    "name": "spade_10_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 23897,
+    "webp_bytes": 3682
+  },
+  {
+    "name": "spade_10_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 23897,
+    "webp_bytes": 3682
+  },
+  {
+    "name": "spade_2_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 9591,
+    "webp_bytes": 1694
+  },
+  {
+    "name": "spade_2_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 9591,
+    "webp_bytes": 1694
+  },
+  {
+    "name": "spade_3_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 11731,
+    "webp_bytes": 2036
+  },
+  {
+    "name": "spade_3_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 11731,
+    "webp_bytes": 2036
+  },
+  {
+    "name": "spade_4_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 14004,
+    "webp_bytes": 2062
+  },
+  {
+    "name": "spade_4_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 14004,
+    "webp_bytes": 2062
+  },
+  {
+    "name": "spade_5_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 15372,
+    "webp_bytes": 2600
+  },
+  {
+    "name": "spade_5_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 15372,
+    "webp_bytes": 2600
+  },
+  {
+    "name": "spade_6_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 18235,
+    "webp_bytes": 2876
+  },
+  {
+    "name": "spade_6_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 18235,
+    "webp_bytes": 2876
+  },
+  {
+    "name": "spade_7_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 17842,
+    "webp_bytes": 2800
+  },
+  {
+    "name": "spade_7_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 17842,
+    "webp_bytes": 2800
+  },
+  {
+    "name": "spade_8_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 19710,
+    "webp_bytes": 3206
+  },
+  {
+    "name": "spade_8_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 19710,
+    "webp_bytes": 3206
+  },
+  {
+    "name": "spade_9_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 21661,
+    "webp_bytes": 3338
+  },
+  {
+    "name": "spade_9_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 21661,
+    "webp_bytes": 3338
+  },
+  {
+    "name": "spade_a_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 10370,
+    "webp_bytes": 1760
+  },
+  {
+    "name": "spade_a_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 10370,
+    "webp_bytes": 1760
+  },
+  {
+    "name": "spade_j_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 13317,
+    "webp_bytes": 2426
+  },
+  {
+    "name": "spade_j_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 13317,
+    "webp_bytes": 2426
+  },
+  {
+    "name": "spade_k_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 64742,
+    "webp_bytes": 11298
+  },
+  {
+    "name": "spade_k_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 64742,
+    "webp_bytes": 11298
+  },
+  {
+    "name": "spade_q_1.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 48812,
+    "webp_bytes": 10206
+  },
+  {
+    "name": "spade_q_2.svg",
+    "width": 169,
+    "height": 244,
+    "svg_bytes": 48812,
+    "webp_bytes": 10206
+  }
+]
