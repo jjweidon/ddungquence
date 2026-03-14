@@ -25,7 +25,7 @@ const TURN_SECONDS = 30;
 const TURN_WARNING_AT = 5;
 
 /** 채팅 리액션: 미리 정의된 메시지 목록 */
-const REACTION_MESSAGES = ["😮", "😜", "😴", "훗", "최악", "썩을", "아싸", "쓰레기같은", "굿굿"] as const;
+const REACTION_MESSAGES = ["😮", "😜", "😴", "❓", "훗", "최악", "썩을", "아싸", "쓰레기같은", "굿굿"] as const;
 /** 리액션 쿨타임(ms) */
 const REACTION_COOLDOWN_MS = 5000;
 /** 말풍선 표시 유지 시간(ms) */
