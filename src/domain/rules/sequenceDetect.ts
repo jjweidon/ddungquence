@@ -261,3 +261,50 @@ export function countSequencesByTeam(
 ): number {
   return completedSequences.filter((s) => s.teamId === teamId).length;
 }
+
+// ─── N목 카운트 및 핵심 셀 판정 (플레이어 통계용) ─────────────────
+
+/**
+ * 해당 셀이 포함된 라인들 중, 팀이 minRunLength 이상 연속으로 채운 라인 수를 반환.
+ * (dir, lineId)별로 1회씩만 카운트. 시퀀스(5목) 완성 시 4목/3목 중복 카운트 방지용으로
+ * newSeqs가 비어 있을 때만 호출하는 것이 권장.
+ */
+export function countLinesWithNInARowAtCell(
+  chipsByCell: ChipsByCell,
+  teamId: TeamId,
+  cellIdVal: number,
+  minRunLength: number,
+): number {
+  const row = Math.floor(cellIdVal / BOARD_SIZE);
+  const col = cellIdVal % BOARD_SIZE;
+  let count = 0;
+  const lineParams: [number, number][] = [
+    [0, row],
+    [1, col],
+    [2, row - col],
+    [3, row + col],
+  ];
+  for (const [dir, lineId] of lineParams) {
+    const runs = getRunsOnLine(chipsByCell, teamId, dir, lineId);
+    for (const run of runs) {
+      if (run.length >= minRunLength && run.includes(cellIdVal)) {
+        count++;
+        break;
+      }
+    }
+  }
+  return count;
+}
+
+/**
+ * 해당 셀이 해당 팀의 minRunLength 이상 연속 라인에 포함되는지.
+ * 1-eye 핵심 제거(상대 3목·4목), 2-eye 핵심 배치(아군 3목·4목) 판정에 사용.
+ */
+export function isCellPartOfNInARow(
+  chipsByCell: ChipsByCell,
+  teamId: TeamId,
+  cellIdVal: number,
+  minRunLength: number,
+): boolean {
+  return countLinesWithNInARowAtCell(chipsByCell, teamId, cellIdVal, minRunLength) > 0;
+}

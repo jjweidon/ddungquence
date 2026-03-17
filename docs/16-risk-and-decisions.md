@@ -79,6 +79,13 @@
 - 결정: 관전 시 선택한 참여자 uid로만 subscribeToHand 호출. Firestore 규칙 강화 시 같은 방 관전자가 참여자 privateHands read 허용 필요.
 - 영향 범위: game page(관전자 손패 영역·플레이어 클릭 토글), Firestore 규칙(추후)
 
+### [D-20250317-01] 게임 종료 결과 모달: 개인 기록 및 팀 기여도
+- 맥락: 게임 종료 시 레드/블루 팀 승패만 표시하던 것을, 개인 플레이어 기록(잭 사용, 4목, 시퀀스 등)과 팀 내 기여도 시각화로 확장
+- 결정: `PublicGameState`에 `playerStatsByUid` 추가. 턴마다 잭·시퀀스·4목·3목·핵심 Jack 판정을 누적. `docs/21-player-stats-weighting.md` 가중치로 기여도 점수 계산. EndedOverlay에서 개인 기록 + 기여도 막대 그래프 표시
+- 근거: 팀 승패 외 개인 기여 인정, 전략적 플레이 기록 시각화
+- 영향 범위: `src/features/room/types.ts`, `src/features/game/gameApi.ts`, `src/domain/rules/sequenceDetect.ts`, `src/domain/rules/playerStats.ts`, `src/app/game/[roomId]/page.tsx`, docs/21
+- 후속 작업: 없음
+
 ## 3) 핵심 리스크
 
 ### R-1 비용 폭증(Reads)

@@ -12,7 +12,9 @@ import { isDeadCard, getPlayableCells, getCardCells } from "@/domain/rules/deadC
 import { isTwoEyedJack, isOneEyedJack, isJack } from "@/domain/rules/jacks";
 import { getHighlightForCard } from "@/domain/rules/highlight";
 import boardLayout from "@/domain/board/board-layout.v1.json";
-import type { RoomDoc, RoomPlayerDoc, PublicGameState, TeamId, RoomReaction } from "@/features/room/types";
+import type { RoomDoc, RoomPlayerDoc, PublicGameState, TeamId, RoomReaction, PlayerGameStats } from "@/features/room/types";
+import { INITIAL_PLAYER_STATS } from "@/features/room/types";
+import { computeContributionScore } from "@/domain/rules/playerStats";
 import type { PrivateHandDoc, GameAction } from "@/features/game/types";
 import { collection, getDocs } from "firebase/firestore";
 import { getFirestoreDb } from "@/lib/firebase/client";
@@ -1098,17 +1100,19 @@ function SequenceCompletePopup({ teamId }: { teamId: TeamId }) {
   );
 }
 
-// ─── 승리/종료 오버레이 (승리/패배 명확 표시) ───────────────────────
+// ─── 승리/종료 오버레이 (승리/패배 + 개인 기록 + 팀 기여도) ──────────────
+type ParticipantForResult = { uid: string; teamId: TeamId; nickname: string };
+
 function EndedOverlay({
   game,
   myTeamId,
-  participantsWithNames,
+  participants,
   onGoHome,
   onClose,
 }: {
   game: PublicGameState;
   myTeamId: TeamId | undefined;
-  participantsWithNames: Array<{ teamId: TeamId; nickname: string }>;
+  participants: ParticipantForResult[];
   onGoHome: () => void;
   onClose: () => void;
 }) {
@@ -1117,119 +1121,141 @@ function EndedOverlay({
 
   const isWinner = winner.teamId === myTeamId;
   const winnerTeamId = winner.teamId;
-  const redNames = participantsWithNames
-    .filter((p) => p.teamId === "A")
-    .map((p) => p.nickname)
-    .join(", ");
-  const blueNames = participantsWithNames
-    .filter((p) => p.teamId === "B")
-    .map((p) => p.nickname)
-    .join(", ");
+  const redParticipants = participants.filter((p) => p.teamId === "A");
+  const blueParticipants = participants.filter((p) => p.teamId === "B");
   const redScore = game.scoreByTeam?.A ?? 0;
   const blueScore = game.scoreByTeam?.B ?? 0;
+  const playerStatsByUid = game.playerStatsByUid ?? {};
+
+  const getStats = (p: ParticipantForResult): PlayerGameStats => ({
+    ...INITIAL_PLAYER_STATS,
+    ...(playerStatsByUid[p.uid] ?? {}),
+  });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex justify-center items-start bg-black/70 backdrop-blur-sm overflow-y-auto p-2 sm:p-4">
       <div
         className={[
-          "rounded-2xl p-8 flex flex-col items-center gap-6 mx-4 max-w-sm w-full border-2",
+          "rounded-xl sm:rounded-2xl p-3 sm:p-4 flex flex-col items-center gap-2 sm:gap-3 mx-auto max-w-md w-full border-2 shrink-0 my-2",
           isWinner
             ? "bg-dq-charcoal border-dq-green shadow-[0_0_40px_rgba(22,163,74,0.25)]"
             : "bg-dq-charcoal border-white/20",
         ].join(" ")}
       >
-        <p className="text-6xl">{isWinner ? "🎉" : "😭"}</p>
+        <p className="text-5xl sm:text-6xl shrink-0">{isWinner ? "🎉" : "😭"}</p>
         <p
           className={[
-            "text-3xl font-black tracking-tight",
+            "text-xl sm:text-2xl font-black tracking-tight shrink-0",
             isWinner ? "text-dq-green" : "text-dq-white/70",
           ].join(" ")}
         >
           {isWinner ? "승리!" : "패배ㅠ"}
         </p>
-        <p className="text-dq-white/60 text-sm -mt-2">게임 종료</p>
+        <p className="text-dq-white/60 text-xs -mt-1 shrink-0">게임 종료</p>
 
-        {/* 레드 vs 블루 비교: 팀별 닉네임 + 시퀀스 수 */}
-        <div className="w-full flex items-stretch gap-3 sm:gap-4">
-          {/* 레드 팀 카드 */}
+        {/* 팀 요약: 레드 vs 블루 */}
+        <div className="w-full flex items-stretch gap-2 shrink-0">
           <div
             className={[
-              "flex-1 min-w-0 flex flex-col rounded-xl overflow-hidden border-2 transition-shadow",
+              "flex-1 min-w-0 flex flex-col rounded-lg border-2 px-2 py-1.5",
               winnerTeamId === "A"
-                ? "bg-dq-red/15 border-dq-red/60 shadow-[0_0_20px_rgba(214,31,44,0.2)_inset_0_1px_0_rgba(255,255,255,0.06)]"
-                : "bg-dq-red/10 border-dq-red/40 shadow-[0_0_12px_rgba(214,31,44,0.1)]",
+                ? "bg-dq-red/15 border-dq-red/60"
+                : "bg-dq-red/10 border-dq-red/40",
             ].join(" ")}
           >
-            <div className="px-3 py-2 border-b border-dq-red/30 bg-dq-red/10">
-              <p className="text-dq-redLight font-bold text-sm tracking-wide">
-                레드 팀
-              </p>
-              <p className="text-dq-redLight/90 text-[10px] font-semibold mt-0.5">
-                {winnerTeamId === "A" ? "승리" : "패배"}
-              </p>
-            </div>
-            <div className="flex-1 flex flex-col items-center justify-center py-3 px-2 min-h-[52px]">
-              {redNames ? (
-                <p className="text-dq-white/95 text-xs leading-relaxed break-words text-center">
-                  {redNames}
-                </p>
-              ) : (
-                <span className="text-dq-white/40 text-xs">—</span>
-              )}
-            </div>
-            <div className="px-3 py-2 border-t border-dq-red/30 bg-dq-red/10 flex items-center justify-center">
-              <span className="text-dq-redLight font-black text-base tabular-nums">
-                {redScore}
-              </span>
-              <span className="text-dq-redLight/80 text-xs font-medium ml-0.5">시퀀스</span>
-            </div>
+            <p className="text-dq-redLight font-bold text-xs">레드</p>
+            <p className="text-dq-redLight/80 text-[10px]">{winnerTeamId === "A" ? "승리" : "패배"}</p>
+            <p className="text-dq-redLight font-black text-base tabular-nums">{redScore} 시퀀스</p>
           </div>
-
-          <div className="shrink-0 flex flex-col items-center justify-center">
-            <span className="inline-flex size-8 items-center justify-center rounded-full bg-white/10 border border-white/20 text-dq-white/70 text-xs font-black">
-              vs
-            </span>
+          <div className="shrink-0 flex items-center">
+            <span className="text-dq-white/50 text-xs font-bold">vs</span>
           </div>
-
-          {/* 블루 팀 카드 */}
           <div
             className={[
-              "flex-1 min-w-0 flex flex-col rounded-xl overflow-hidden border-2 transition-shadow",
+              "flex-1 min-w-0 flex flex-col rounded-lg border-2 px-2 py-1.5",
               winnerTeamId === "B"
-                ? "bg-dq-blue/15 border-dq-blueLight/50 shadow-[0_0_20px_rgba(107,154,232,0.25)_inset_0_1px_0_rgba(255,255,255,0.06)]"
-                : "bg-dq-blue/10 border-dq-blue/40 shadow-[0_0_12px_rgba(107,154,232,0.1)]",
+                ? "bg-dq-blue/15 border-dq-blueLight/50"
+                : "bg-dq-blue/10 border-dq-blue/40",
             ].join(" ")}
           >
-            <div className="px-3 py-2 border-b border-dq-blueLight/30 bg-dq-blue/10">
-              <p className="text-dq-blueLight font-bold text-sm tracking-wide">
-                블루 팀
-              </p>
-              <p className="text-dq-blueLight/90 text-[10px] font-semibold mt-0.5">
-                {winnerTeamId === "B" ? "승리" : "패배"}
-              </p>
-            </div>
-            <div className="flex-1 flex flex-col items-center justify-center py-3 px-2 min-h-[52px]">
-              {blueNames ? (
-                <p className="text-dq-white/95 text-xs leading-relaxed break-words text-center">
-                  {blueNames}
-                </p>
-              ) : (
-                <span className="text-dq-white/40 text-xs">—</span>
-              )}
-            </div>
-            <div className="px-3 py-2 border-t border-dq-blueLight/30 bg-dq-blue/10 flex items-center justify-center">
-              <span className="text-dq-blueLight font-black text-base tabular-nums">
-                {blueScore}
-              </span>
-              <span className="text-dq-blueLight/80 text-xs font-medium ml-0.5">시퀀스</span>
-            </div>
+            <p className="text-dq-blueLight font-bold text-xs">블루</p>
+            <p className="text-dq-blueLight/80 text-[10px]">{winnerTeamId === "B" ? "승리" : "패배"}</p>
+            <p className="text-dq-blueLight font-black text-base tabular-nums">{blueScore} 시퀀스</p>
           </div>
         </div>
 
+        {/* 개인 기록(1J·2J·Seq) + 팀 기여도 — 데스크톱 2열/모바일 1열 */}
+        <div className="w-full grid grid-cols-1 lg:grid-cols-2 gap-2 lg:gap-3 min-h-0 shrink">
+          {["A", "B"].map((teamId) => {
+            const teamParticipants =
+              teamId === "A" ? redParticipants : blueParticipants;
+            if (teamParticipants.length === 0) return null;
+
+            const isRed = teamId === "A";
+            const maxScore = Math.max(
+              1,
+              ...teamParticipants.map((p) => computeContributionScore(getStats(p))),
+            );
+
+            return (
+              <div
+                key={teamId}
+                className={[
+                  "rounded-lg border overflow-hidden min-w-0",
+                  isRed
+                    ? "bg-dq-red/5 border-dq-red/30"
+                    : "bg-dq-blue/5 border-dq-blue/30",
+                ].join(" ")}
+              >
+                <div
+                  className={[
+                    "px-2 py-1 text-[10px] font-bold border-b",
+                    isRed ? "bg-dq-red/10 border-dq-red/20 text-dq-redLight" : "bg-dq-blue/10 border-dq-blue/20 text-dq-blueLight",
+                  ].join(" ")}
+                >
+                  {isRed ? "레드" : "블루"}
+                </div>
+                <div className="p-1.5 space-y-1">
+                  {teamParticipants.map((p) => {
+                    const stats = getStats(p);
+                    const contrib = computeContributionScore(stats);
+                    const pct = Math.round((contrib / maxScore) * 100);
+                    return (
+                      <div
+                        key={p.uid}
+                        className="bg-black/20 rounded px-2 py-1 flex items-center gap-2"
+                      >
+                        <span className="text-dq-white font-medium text-xs truncate min-w-0 flex-1">
+                          {p.nickname}
+                        </span>
+                        <span className="text-dq-white/60 text-[10px] tabular-nums shrink-0 flex gap-2 flex-wrap">
+                          <span title="1-eye 잭">1J {stats.oneEyedJackUsed}</span>
+                          <span title="2-eye 잭">2J {stats.twoEyedJackUsed}</span>
+                          <span title="시퀀스">Seq {stats.sequencesCompleted}</span>
+                          <span className="text-dq-white/90 font-medium">{contrib}점</span>
+                        </span>
+                        <div className="w-10 h-1 bg-white/10 rounded-full overflow-hidden shrink-0">
+                          <div
+                            className={[
+                              "h-full rounded-full",
+                              isRed ? "bg-dq-redLight" : "bg-dq-blueLight",
+                            ].join(" ")}
+                            style={{ width: `${Math.max(12, pct)}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
         {isWinner && (
-          <p className="text-dq-redLight font-bold text-sm">축하합니다!</p>
+          <p className="text-dq-redLight font-bold text-xs shrink-0">축하합니다!</p>
         )}
-        <div className="w-full flex flex-col gap-2">
+        <div className="w-full flex flex-col gap-1.5 shrink-0">
           <button
             type="button"
             onClick={onGoHome}
@@ -1518,7 +1544,7 @@ export default function GamePage() {
         // 방금 시퀀스 완성으로 게임 종료 → 보드 2초 노출(시퀀스 팝업 없음) 후 결과창
         const t = setTimeout(() => {
           setShowResultOverlay(true);
-        }, 2000);
+        }, 2500);
         return () => clearTimeout(t);
       }
       if (!wasPlaying) {
@@ -1743,9 +1769,9 @@ export default function GamePage() {
         <EndedOverlay
           game={game}
           myTeamId={frozenTeamIdRef.current ?? me?.teamId}
-          participantsWithNames={players
+          participants={players
             .filter((p) => p.role === "participant")
-            .map((p) => ({ teamId: (p.teamId ?? "A") as TeamId, nickname: p.nickname }))}
+            .map((p) => ({ uid: p.uid, teamId: (p.teamId ?? "A") as TeamId, nickname: p.nickname }))}
           onGoHome={handleGoToLobby}
           onClose={() => setShowResultOverlay(false)}
         />

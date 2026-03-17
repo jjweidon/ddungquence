@@ -12,8 +12,19 @@ import {
 } from "firebase/firestore";
 import { getFirestoreDb, getFirebaseAuth } from "@/lib/firebase/client";
 import { createShuffledDeck } from "@/domain/cards/deck";
-import { detectNewSequences } from "@/domain/rules/sequenceDetect";
-import type { RoomPlayerDoc, RoomPlayerDocWrite, PublicGameState, TeamId } from "@/features/room/types";
+import {
+  detectNewSequences,
+  countLinesWithNInARowAtCell,
+  isCellPartOfNInARow,
+} from "@/domain/rules/sequenceDetect";
+import {
+  type RoomPlayerDoc,
+  type RoomPlayerDocWrite,
+  type PublicGameState,
+  type TeamId,
+  type PlayerGameStats,
+  INITIAL_PLAYER_STATS,
+} from "@/features/room/types";
 import type { PrivateHandDoc, PrivateDealerDoc, GameAction } from "./types";
 
 /** 플레이어 수에 따른 초기 손패 장수 */
@@ -119,8 +130,10 @@ export async function startGame(roomId: string): Promise<void> {
 
   // rooms/{roomId}: status + game 초기 상태
   const initialDiscardBySeat: Record<string, null> = {};
-  for (const uid of Object.keys(seatByUid)) {
-    initialDiscardBySeat[String(seatByUid[uid])] = null;
+  const initialPlayerStats: Record<string, PlayerGameStats> = {};
+  for (const u of Object.keys(seatByUid)) {
+    initialDiscardBySeat[String(seatByUid[u])] = null;
+    initialPlayerStats[u] = { ...INITIAL_PLAYER_STATS };
   }
 
   batch.update(roomRef, {
@@ -140,6 +153,7 @@ export async function startGame(roomId: string): Promise<void> {
       turnStartedAt: serverTimestamp(),
       lastPlacedCellId: null,
       lastActionCellId: null,
+      playerStatsByUid: initialPlayerStats,
     },
   });
 
@@ -318,6 +332,34 @@ export async function submitTurnAction(
           ? action.removeCellId
           : null;
 
+    // 플레이어 통계 갱신 (턴 액터 기준)
+    const prevStats: PlayerGameStats = {
+      ...INITIAL_PLAYER_STATS,
+      ...(game.playerStatsByUid?.[uid] ?? {}),
+    };
+    const delta: Partial<PlayerGameStats> = {};
+    if (action.type === "TURN_PLAY_JACK_REMOVE") {
+      delta.oneEyedJackUsed = prevStats.oneEyedJackUsed + 1;
+      const removedTeam = game.chipsByCell[String(action.removeCellId)] as TeamId;
+      if (removedTeam && isCellPartOfNInARow(game.chipsByCell, removedTeam, action.removeCellId, 3)) {
+        delta.keyJackRemovals = prevStats.keyJackRemovals + 1;
+      }
+    } else if (action.type === "TURN_PLAY_JACK_WILD") {
+      delta.twoEyedJackUsed = prevStats.twoEyedJackUsed + 1;
+      if (isCellPartOfNInARow(newChipsByCell, me.teamId, action.targetCellId, 3)) {
+        delta.keyJackPlacements = prevStats.keyJackPlacements + 1;
+      }
+    }
+    if (action.type === "TURN_PLAY_NORMAL" || action.type === "TURN_PLAY_JACK_WILD") {
+      delta.sequencesCompleted = prevStats.sequencesCompleted + newSeqs.length;
+      if (newSeqs.length === 0) {
+        delta.fourInARowCount = prevStats.fourInARowCount + countLinesWithNInARowAtCell(newChipsByCell, me.teamId, action.targetCellId, 4);
+        delta.threeInARowCount = prevStats.threeInARowCount + countLinesWithNInARowAtCell(newChipsByCell, me.teamId, action.targetCellId, 3);
+      }
+    }
+    const newStats: PlayerGameStats = { ...prevStats, ...delta };
+    const newPlayerStatsByUid = { ...(game.playerStatsByUid ?? {}), [uid]: newStats };
+
     const gameUpdate = {
       "game.version": game.version + 1,
       "game.phase": isEnded ? "ended" : "playing",
@@ -332,6 +374,7 @@ export async function submitTurnAction(
       "game.deckMeta": newDeckMeta,
       "game.oneEyeLockedCell": oneEyeLockedCell ?? null,
       "game.twoEyeLockedCell": twoEyeLockedCell ?? null,
+      "game.playerStatsByUid": newPlayerStatsByUid,
       "game.lastAction": { uid, type: action.type, at: serverTimestamp() },
       "game.lastPlacedCellId": lastPlacedCellId,
       "game.lastActionCellId": lastActionCellId,
@@ -520,6 +563,34 @@ export async function submitBotTurnAction(
           ? action.removeCellId
           : null;
 
+    // 플레이어 통계 갱신 (봇 턴 액터 기준)
+    const prevBotStats: PlayerGameStats = {
+      ...INITIAL_PLAYER_STATS,
+      ...(game.playerStatsByUid?.[botUid] ?? {}),
+    };
+    const botDelta: Partial<PlayerGameStats> = {};
+    if (action.type === "TURN_PLAY_JACK_REMOVE") {
+      botDelta.oneEyedJackUsed = prevBotStats.oneEyedJackUsed + 1;
+      const removedTeam = game.chipsByCell[String(action.removeCellId)] as TeamId;
+      if (removedTeam && isCellPartOfNInARow(game.chipsByCell, removedTeam, action.removeCellId, 3)) {
+        botDelta.keyJackRemovals = prevBotStats.keyJackRemovals + 1;
+      }
+    } else if (action.type === "TURN_PLAY_JACK_WILD") {
+      botDelta.twoEyedJackUsed = prevBotStats.twoEyedJackUsed + 1;
+      if (isCellPartOfNInARow(newChipsByCell, botParticipant.teamId, action.targetCellId, 3)) {
+        botDelta.keyJackPlacements = prevBotStats.keyJackPlacements + 1;
+      }
+    }
+    if (action.type === "TURN_PLAY_NORMAL" || action.type === "TURN_PLAY_JACK_WILD") {
+      botDelta.sequencesCompleted = prevBotStats.sequencesCompleted + newSeqs.length;
+      if (newSeqs.length === 0) {
+        botDelta.fourInARowCount = prevBotStats.fourInARowCount + countLinesWithNInARowAtCell(newChipsByCell, botParticipant.teamId, action.targetCellId, 4);
+        botDelta.threeInARowCount = prevBotStats.threeInARowCount + countLinesWithNInARowAtCell(newChipsByCell, botParticipant.teamId, action.targetCellId, 3);
+      }
+    }
+    const newBotStats: PlayerGameStats = { ...prevBotStats, ...botDelta };
+    const newPlayerStatsByUid = { ...(game.playerStatsByUid ?? {}), [botUid]: newBotStats };
+
     const gameUpdate = {
       "game.version": game.version + 1,
       "game.phase": isEnded ? "ended" : "playing",
@@ -534,6 +605,7 @@ export async function submitBotTurnAction(
       "game.deckMeta": newDeckMeta,
       "game.oneEyeLockedCell": oneEyeLockedCell ?? null,
       "game.twoEyeLockedCell": twoEyeLockedCell ?? null,
+      "game.playerStatsByUid": newPlayerStatsByUid,
       "game.lastAction": { uid: botUid, type: action.type, at: serverTimestamp() },
       "game.lastPlacedCellId": lastPlacedCellId,
       "game.lastActionCellId": lastActionCellId,

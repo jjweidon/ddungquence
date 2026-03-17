@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  /** Firebase vendor-chunk 경로 이슈 회피 (Next.js 15) */
+  serverExternalPackages: ["firebase", "firebase-admin"],
   async headers() {
     return [
       {

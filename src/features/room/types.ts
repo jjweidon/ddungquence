@@ -31,6 +31,29 @@ export interface CompletedSequenceEntry {
   createdTurn: number;
 }
 
+/** 게임 중 플레이어별 누적 통계 (턴 단위로 갱신) */
+export interface PlayerGameStats {
+  oneEyedJackUsed: number;
+  twoEyedJackUsed: number;
+  sequencesCompleted: number;
+  fourInARowCount: number;
+  threeInARowCount: number;
+  /** One-eyed Jack으로 상대 4목/시퀀스 직전 칩 제거 */
+  keyJackRemovals: number;
+  /** Two-eyed Jack으로 아군 4목/시퀀스 직전 핵심 배치 */
+  keyJackPlacements: number;
+}
+
+export const INITIAL_PLAYER_STATS: PlayerGameStats = {
+  oneEyedJackUsed: 0,
+  twoEyedJackUsed: 0,
+  sequencesCompleted: 0,
+  fourInARowCount: 0,
+  threeInARowCount: 0,
+  keyJackRemovals: 0,
+  keyJackPlacements: 0,
+};
+
 export interface PublicGameState {
   version: number;
   phase: "setup" | "playing" | "ended";
@@ -54,6 +77,8 @@ export interface PublicGameState {
   lastActionCellId?: number | null;
   /** 현재 턴이 시작된 시각(서버 기준). 새로고침 후에도 타이머 유지용 */
   turnStartedAt?: Timestamp;
+  /** 플레이어별 누적 통계. 게임 중 턴마다 갱신 */
+  playerStatsByUid?: Record<string, PlayerGameStats>;
 }
 
 /** 게임 중 플레이어가 보내는 빠른 채팅 리액션 */
