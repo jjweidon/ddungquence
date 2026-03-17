@@ -936,8 +936,8 @@ function ActionBar({
       : "보드에서 놓을 위치를 탭하세요";
 
   return (
-    <div className={`w-full ${barHeight} rounded-lg lg:rounded-xl bg-dq-red/10 border border-dq-red/30 flex items-center justify-center px-3 lg:px-4`}>
-      <span className={`text-dq-redLight ${textSize} font-medium`}>{hint}</span>
+    <div className={`w-full ${barHeight} rounded-lg lg:rounded-xl bg-amber-400/15 border-2 border-amber-400/50 flex items-center justify-center ring-1 ring-amber-400/30 px-3 lg:px-4`}>
+      <span className={`text-amber-400 font-bold ${textSize}`}>{hint}</span>
     </div>
   );
 }
