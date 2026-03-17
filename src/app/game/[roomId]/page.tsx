@@ -1132,6 +1132,12 @@ function EndedOverlay({
     ...(playerStatsByUid[p.uid] ?? {}),
   });
 
+  /** 게이지 기준: 전체 플레이어 중 최고 기여도 점수 */
+  const globalMaxScore = Math.max(
+    1,
+    ...participants.map((p) => computeContributionScore(getStats(p))),
+  );
+
   return (
     <div className="fixed inset-0 z-50 flex justify-center items-start bg-black/70 backdrop-blur-sm overflow-y-auto p-2 sm:p-4">
       <div
@@ -1192,10 +1198,6 @@ function EndedOverlay({
             if (teamParticipants.length === 0) return null;
 
             const isRed = teamId === "A";
-            const maxScore = Math.max(
-              1,
-              ...teamParticipants.map((p) => computeContributionScore(getStats(p))),
-            );
 
             return (
               <div
@@ -1219,7 +1221,7 @@ function EndedOverlay({
                   {teamParticipants.map((p) => {
                     const stats = getStats(p);
                     const contrib = computeContributionScore(stats);
-                    const pct = Math.round((contrib / maxScore) * 100);
+                    const pct = Math.round((contrib / globalMaxScore) * 100);
                     return (
                       <div
                         key={p.uid}

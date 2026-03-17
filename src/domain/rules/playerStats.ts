@@ -2,13 +2,15 @@ import type { PlayerGameStats } from "@/features/room/types";
 
 /** docs/21-player-stats-weighting.md 기반 가중치 */
 const WEIGHTS = {
-  sequencesCompleted: 15,
+  sequencesCompleted: 10,
   fourInARowCount: 6,
   threeInARowCount: 2,
-  twoEyedJackUsed: 3,
-  oneEyedJackUsed: 3,
-  keyJackRemovals: 5,
-  keyJackPlacements: 5,
+  twoEyedJackUsed: 1,
+  oneEyedJackUsed: 1,
+  keyJackRemovals4: 5,
+  keyJackRemovals3: 2,
+  keyJackPlacements4: 5,
+  keyJackPlacements3: 2,
 } as const;
 
 /**
@@ -22,7 +24,9 @@ export function computeContributionScore(stats: PlayerGameStats): number {
     stats.threeInARowCount * WEIGHTS.threeInARowCount +
     stats.twoEyedJackUsed * WEIGHTS.twoEyedJackUsed +
     stats.oneEyedJackUsed * WEIGHTS.oneEyedJackUsed +
-    stats.keyJackRemovals * WEIGHTS.keyJackRemovals +
-    stats.keyJackPlacements * WEIGHTS.keyJackPlacements
+    stats.keyJackRemovals4 * WEIGHTS.keyJackRemovals4 +
+    stats.keyJackRemovals3 * WEIGHTS.keyJackRemovals3 +
+    stats.keyJackPlacements4 * WEIGHTS.keyJackPlacements4 +
+    stats.keyJackPlacements3 * WEIGHTS.keyJackPlacements3
   );
 }

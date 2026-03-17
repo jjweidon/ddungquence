@@ -38,10 +38,14 @@ export interface PlayerGameStats {
   sequencesCompleted: number;
   fourInARowCount: number;
   threeInARowCount: number;
-  /** One-eyed Jack으로 상대 4목/시퀀스 직전 칩 제거 */
-  keyJackRemovals: number;
-  /** Two-eyed Jack으로 아군 4목/시퀀스 직전 핵심 배치 */
-  keyJackPlacements: number;
+  /** One-eyed Jack으로 상대 4목 칩 제거 횟수 */
+  keyJackRemovals4: number;
+  /** One-eyed Jack으로 상대 3목 칩 제거 횟수 (4목 미만) */
+  keyJackRemovals3: number;
+  /** Two-eyed Jack으로 아군 4목에 핵심 배치 횟수 */
+  keyJackPlacements4: number;
+  /** Two-eyed Jack으로 아군 3목에 핵심 배치 횟수 (4목 미만) */
+  keyJackPlacements3: number;
 }
 
 export const INITIAL_PLAYER_STATS: PlayerGameStats = {
@@ -50,8 +54,10 @@ export const INITIAL_PLAYER_STATS: PlayerGameStats = {
   sequencesCompleted: 0,
   fourInARowCount: 0,
   threeInARowCount: 0,
-  keyJackRemovals: 0,
-  keyJackPlacements: 0,
+  keyJackRemovals4: 0,
+  keyJackRemovals3: 0,
+  keyJackPlacements4: 0,
+  keyJackPlacements3: 0,
 };
 
 export interface PublicGameState {

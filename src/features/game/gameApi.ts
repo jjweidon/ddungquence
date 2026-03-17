@@ -341,13 +341,19 @@ export async function submitTurnAction(
     if (action.type === "TURN_PLAY_JACK_REMOVE") {
       delta.oneEyedJackUsed = prevStats.oneEyedJackUsed + 1;
       const removedTeam = game.chipsByCell[String(action.removeCellId)] as TeamId;
-      if (removedTeam && isCellPartOfNInARow(game.chipsByCell, removedTeam, action.removeCellId, 3)) {
-        delta.keyJackRemovals = prevStats.keyJackRemovals + 1;
+      if (removedTeam) {
+        if (isCellPartOfNInARow(game.chipsByCell, removedTeam, action.removeCellId, 4)) {
+          delta.keyJackRemovals4 = prevStats.keyJackRemovals4 + 1;
+        } else if (isCellPartOfNInARow(game.chipsByCell, removedTeam, action.removeCellId, 3)) {
+          delta.keyJackRemovals3 = prevStats.keyJackRemovals3 + 1;
+        }
       }
     } else if (action.type === "TURN_PLAY_JACK_WILD") {
       delta.twoEyedJackUsed = prevStats.twoEyedJackUsed + 1;
-      if (isCellPartOfNInARow(newChipsByCell, me.teamId, action.targetCellId, 3)) {
-        delta.keyJackPlacements = prevStats.keyJackPlacements + 1;
+      if (isCellPartOfNInARow(newChipsByCell, me.teamId, action.targetCellId, 4)) {
+        delta.keyJackPlacements4 = prevStats.keyJackPlacements4 + 1;
+      } else if (isCellPartOfNInARow(newChipsByCell, me.teamId, action.targetCellId, 3)) {
+        delta.keyJackPlacements3 = prevStats.keyJackPlacements3 + 1;
       }
     }
     if (action.type === "TURN_PLAY_NORMAL" || action.type === "TURN_PLAY_JACK_WILD") {
@@ -572,13 +578,19 @@ export async function submitBotTurnAction(
     if (action.type === "TURN_PLAY_JACK_REMOVE") {
       botDelta.oneEyedJackUsed = prevBotStats.oneEyedJackUsed + 1;
       const removedTeam = game.chipsByCell[String(action.removeCellId)] as TeamId;
-      if (removedTeam && isCellPartOfNInARow(game.chipsByCell, removedTeam, action.removeCellId, 3)) {
-        botDelta.keyJackRemovals = prevBotStats.keyJackRemovals + 1;
+      if (removedTeam) {
+        if (isCellPartOfNInARow(game.chipsByCell, removedTeam, action.removeCellId, 4)) {
+          botDelta.keyJackRemovals4 = prevBotStats.keyJackRemovals4 + 1;
+        } else if (isCellPartOfNInARow(game.chipsByCell, removedTeam, action.removeCellId, 3)) {
+          botDelta.keyJackRemovals3 = prevBotStats.keyJackRemovals3 + 1;
+        }
       }
     } else if (action.type === "TURN_PLAY_JACK_WILD") {
       botDelta.twoEyedJackUsed = prevBotStats.twoEyedJackUsed + 1;
-      if (isCellPartOfNInARow(newChipsByCell, botParticipant.teamId, action.targetCellId, 3)) {
-        botDelta.keyJackPlacements = prevBotStats.keyJackPlacements + 1;
+      if (isCellPartOfNInARow(newChipsByCell, botParticipant.teamId, action.targetCellId, 4)) {
+        botDelta.keyJackPlacements4 = prevBotStats.keyJackPlacements4 + 1;
+      } else if (isCellPartOfNInARow(newChipsByCell, botParticipant.teamId, action.targetCellId, 3)) {
+        botDelta.keyJackPlacements3 = prevBotStats.keyJackPlacements3 + 1;
       }
     }
     if (action.type === "TURN_PLAY_NORMAL" || action.type === "TURN_PLAY_JACK_WILD") {
