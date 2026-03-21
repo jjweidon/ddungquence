@@ -1,18 +1,162 @@
-rules_version='2'
+rules_version = '2';
+
+// 뚱퀀스 MVP — 클라이언트(roomApi / gameApi) 쓰기 패턴과 맞춤.
+// 배포: firebase deploy --only firestore:rules (또는 콘솔에 붙여넣기 후 게시)
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      // This rule allows anyone with your database reference to view, edit,
-      // and delete all data in your database. It is useful for getting
-      // started, but it is configured to expire after 30 days because it
-      // leaves your app open to attackers. At that time, all client
-      // requests to your database will be denied.
-      //
-      // Make sure to write security rules for your app before that time, or
-      // else all client requests to your database will be denied until you
-      // update your rules.
-      allow read, write: if request.time < timestamp.date(2026, 3, 20);
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function roomRef(roomId) {
+      return /databases/$(database)/documents/rooms/$(roomId);
+    }
+
+    function roomSnap(roomId) {
+      return get(roomRef(roomId));
+    }
+
+    function isHost(roomId) {
+      return signedIn() && roomSnap(roomId).data.hostUid == request.auth.uid;
+    }
+
+    function isParticipant(roomId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/rooms/$(roomId)/players/$(request.auth.uid));
+    }
+
+    function isLobby(roomId) {
+      return roomSnap(roomId).data.status == "lobby";
+    }
+
+    function isPlaying(roomId) {
+      return roomSnap(roomId).data.status == "playing";
+    }
+
+    function isEnded(roomId) {
+      return roomSnap(roomId).data.status == "ended";
+    }
+
+    function currentTurnUid(roomId) {
+      return roomSnap(roomId).data.game.currentUid;
+    }
+
+    function canWritePublicGameTurn(roomId) {
+      return signedIn() && isPlaying(roomId) && (
+        request.auth.uid == currentTurnUid(roomId) ||
+        (currentTurnUid(roomId).matches('bot_.*') && isHost(roomId))
+      );
+    }
+
+    function isBotUid(uid) {
+      return uid.matches('^bot_.+');
+    }
+
+    // ── roomCodes: 코드 → roomId (입장 조회) ─────────────────────────
+    match /roomCodes/{code} {
+      allow read: if true;
+      allow create: if signedIn()
+        && request.resource.data.roomId is string
+        && "createdAt" in request.resource.data;
+      allow update: if false;
+      allow delete: if signedIn();
+    }
+
+    match /rooms/{roomId} {
+      allow read: if signedIn() && (
+        isParticipant(roomId) ||
+        isHost(roomId) ||
+        resource.data.status == "lobby" ||
+        resource.data.status == "ended"
+      );
+
+      allow create: if signedIn()
+        && request.resource.data.hostUid == request.auth.uid
+        && request.resource.data.status == "lobby"
+        && request.resource.data.roomCode is string;
+
+      allow update: if signedIn() && (
+        (isHost(roomId) && (isLobby(roomId) || isEnded(roomId))) ||
+        (
+          isLobby(roomId)
+          && request.resource.data.hostUid == request.auth.uid
+          && request.resource.data.hostUid != resource.data.hostUid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["hostUid", "updatedAt"])
+        ) ||
+        (
+          isParticipant(roomId)
+          && (resource.data.status == "lobby" || resource.data.status == "playing")
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["reactions"])
+        ) ||
+        (
+          canWritePublicGameTurn(roomId)
+          && request.resource.data.game.version == resource.data.game.version + 1
+        ) ||
+        (
+          isEnded(roomId)
+          && isParticipant(roomId)
+          && request.resource.data.status == "lobby"
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "updatedAt"])
+        )
+      );
+
+      allow delete: if signedIn()
+        && resource.data.status == "lobby"
+        && resource.data.hostUid == request.auth.uid;
+
+      match /players/{uid} {
+        allow read: if signedIn() && (
+          isParticipant(roomId) ||
+          isHost(roomId) ||
+          roomSnap(roomId).data.status == "lobby" ||
+          roomSnap(roomId).data.status == "ended"
+        );
+
+        allow create: if signedIn() && (
+          (request.auth.uid == uid && isLobby(roomId)) ||
+          (isHost(roomId) && isLobby(roomId) && isBotUid(uid)) ||
+          (isEnded(roomId) && isParticipant(roomId) && isBotUid(uid))
+        );
+
+        allow update: if signedIn() && (
+          request.auth.uid == uid ||
+          (isHost(roomId) && isLobby(roomId))
+        );
+
+        allow delete: if signedIn() && (
+          request.auth.uid == uid ||
+          (isHost(roomId) && isLobby(roomId) && resource.data.isBot == true) ||
+          (isEnded(roomId) && isParticipant(roomId))
+        );
+      }
+
+      match /privateHands/{uid} {
+        allow read: if signedIn() && (
+          request.auth.uid == uid ||
+          isHost(roomId)
+        );
+        allow create, update: if signedIn()
+          && (request.auth.uid == uid || isHost(roomId));
+        allow delete: if false;
+      }
+
+      match /privateDealer/{docId} {
+        allow read, write: if signedIn() && (
+          isHost(roomId) ||
+          (isPlaying(roomId) && request.auth.uid == currentTurnUid(roomId))
+        );
+      }
+
+      match /events/{eventId} {
+        allow read: if isParticipant(roomId) || isHost(roomId);
+        allow create: if signedIn() && (
+          isHost(roomId) ||
+          (isPlaying(roomId) && request.auth.uid == currentTurnUid(roomId))
+        );
+        allow update, delete: if false;
+      }
     }
   }
 }
