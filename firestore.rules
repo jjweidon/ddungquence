@@ -1,8 +1,6 @@
 rules_version = '2';
 
-// 뚱퀀스 MVP — 클라이언트(roomApi / gameApi) 쓰기 패턴과 맞춤.
-// 배포: firebase deploy --only firestore:rules (또는 콘솔에 붙여넣기 후 게시)
-
+// 동작 우선 MVP 규칙(간단 버전)
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -10,51 +8,18 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function roomRef(roomId) {
-      return /databases/$(database)/documents/rooms/$(roomId);
-    }
-
-    function roomSnap(roomId) {
-      return get(roomRef(roomId));
+    function room(roomId) {
+      return get(/databases/$(database)/documents/rooms/$(roomId));
     }
 
     function isHost(roomId) {
-      return signedIn() && roomSnap(roomId).data.hostUid == request.auth.uid;
-    }
-
-    function isParticipant(roomId) {
-      return signedIn()
-        && exists(/databases/$(database)/documents/rooms/$(roomId)/players/$(request.auth.uid));
-    }
-
-    function isLobby(roomId) {
-      return roomSnap(roomId).data.status == "lobby";
-    }
-
-    function isPlaying(roomId) {
-      return roomSnap(roomId).data.status == "playing";
-    }
-
-    function isEnded(roomId) {
-      return roomSnap(roomId).data.status == "ended";
-    }
-
-    function currentTurnUid(roomId) {
-      return roomSnap(roomId).data.game.currentUid;
-    }
-
-    function canWritePublicGameTurn(roomId) {
-      return signedIn() && isPlaying(roomId) && (
-        request.auth.uid == currentTurnUid(roomId) ||
-        (currentTurnUid(roomId).matches('bot_.*') && isHost(roomId))
-      );
+      return signedIn() && room(roomId).data.hostUid == request.auth.uid;
     }
 
     function isBotUid(uid) {
       return uid.matches('^bot_.+');
     }
 
-    // ── roomCodes: 코드 → roomId (입장 조회) ─────────────────────────
     match /roomCodes/{code} {
       allow read: if true;
       allow create: if signedIn()
@@ -65,12 +30,7 @@ service cloud.firestore {
     }
 
     match /rooms/{roomId} {
-      allow read: if signedIn() && (
-        isParticipant(roomId) ||
-        isHost(roomId) ||
-        resource.data.status == "lobby" ||
-        resource.data.status == "ended"
-      );
+      allow read: if signedIn();
 
       allow create: if signedIn()
         && request.resource.data.hostUid == request.auth.uid
@@ -78,84 +38,73 @@ service cloud.firestore {
         && request.resource.data.roomCode is string;
 
       allow update: if signedIn() && (
-        (isHost(roomId) && (isLobby(roomId) || isEnded(roomId))) ||
+        // 호스트는 로비/종료 상태 운영 권한
+        isHost(roomId) ||
+        // 플레이 중: 현재 턴 플레이어만 public game 갱신
         (
-          isLobby(roomId)
-          && request.resource.data.hostUid == request.auth.uid
-          && request.resource.data.hostUid != resource.data.hostUid
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["hostUid", "updatedAt"])
+          room(roomId).data.status == "playing"
+          && request.auth.uid == room(roomId).data.game.currentUid
+          && request.resource.data.game.version == room(roomId).data.game.version + 1
         ) ||
+        // 플레이 중: 현재 턴이 봇이면 호스트가 대리 갱신
         (
-          isParticipant(roomId)
-          && (resource.data.status == "lobby" || resource.data.status == "playing")
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["reactions"])
+          room(roomId).data.status == "playing"
+          && room(roomId).data.game.currentUid.matches('^bot_.+')
+          && isHost(roomId)
+          && request.resource.data.game.version == room(roomId).data.game.version + 1
         ) ||
+        // 리액션 필드만 변경
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(["reactions"]) ||
+        // 게임 종료 후 로비 전환
         (
-          canWritePublicGameTurn(roomId)
-          && request.resource.data.game.version == resource.data.game.version + 1
-        ) ||
-        (
-          isEnded(roomId)
-          && isParticipant(roomId)
+          room(roomId).data.status == "ended"
           && request.resource.data.status == "lobby"
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "updatedAt"])
+        ) ||
+        // 호스트 위임
+        (
+          room(roomId).data.status == "lobby"
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["hostUid", "updatedAt"])
         )
       );
 
       allow delete: if signedIn()
-        && resource.data.status == "lobby"
-        && resource.data.hostUid == request.auth.uid;
+        && room(roomId).data.status == "lobby"
+        && room(roomId).data.hostUid == request.auth.uid;
 
       match /players/{uid} {
-        allow read: if signedIn() && (
-          isParticipant(roomId) ||
-          isHost(roomId) ||
-          roomSnap(roomId).data.status == "lobby" ||
-          roomSnap(roomId).data.status == "ended"
-        );
+        allow read: if signedIn();
 
         allow create: if signedIn() && (
-          (request.auth.uid == uid && isLobby(roomId)) ||
-          (isHost(roomId) && isLobby(roomId) && isBotUid(uid)) ||
-          (isEnded(roomId) && isParticipant(roomId) && isBotUid(uid))
+          request.auth.uid == uid ||
+          (isHost(roomId) && isBotUid(uid))
         );
 
         allow update: if signedIn() && (
           request.auth.uid == uid ||
-          (isHost(roomId) && isLobby(roomId))
+          isHost(roomId)
         );
 
         allow delete: if signedIn() && (
           request.auth.uid == uid ||
-          (isHost(roomId) && isLobby(roomId) && resource.data.isBot == true) ||
-          (isEnded(roomId) && isParticipant(roomId))
+          isHost(roomId) ||
+          room(roomId).data.status == "ended"
         );
       }
 
       match /privateHands/{uid} {
-        allow read: if signedIn() && (
+        allow read, create, update: if signedIn() && (
           request.auth.uid == uid ||
           isHost(roomId)
         );
-        allow create, update: if signedIn()
-          && (request.auth.uid == uid || isHost(roomId));
         allow delete: if false;
       }
 
       match /privateDealer/{docId} {
         allow read, write: if signedIn() && (
           isHost(roomId) ||
-          (isPlaying(roomId) && request.auth.uid == currentTurnUid(roomId))
+          request.auth.uid == room(roomId).data.game.currentUid
         );
-      }
-
-      match /events/{eventId} {
-        allow read: if isParticipant(roomId) || isHost(roomId);
-        allow create: if signedIn() && (
-          isHost(roomId) ||
-          (isPlaying(roomId) && request.auth.uid == currentTurnUid(roomId))
-        );
-        allow update, delete: if false;
       }
     }
   }
